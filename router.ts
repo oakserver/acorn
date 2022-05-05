@@ -13,7 +13,8 @@ import {
 } from "./types.d.ts";
 import { assert, Deferred, isBodyInit, responseFromHttpError } from "./util.ts";
 
-type RouteResponse<Type> = Response | BodyInit | Type;
+/** Valid return values from a route handler. */
+export type RouteResponse<Type> = Response | BodyInit | Type;
 
 type ParamsDictionary = Record<string, string>;
 
@@ -25,6 +26,8 @@ type GetRouteParameter<S extends string> = RemoveTail<
   `.${string}`
 >;
 
+/** The type alias to help infer what the route parameters are for a route based
+ * on the route string. */
 export type RouteParameters<Route extends string> = string extends Route
   ? ParamsDictionary
   : Route extends `${string}(${string}` ? ParamsDictionary
@@ -40,6 +43,10 @@ export type RouteParameters<Route extends string> = string extends Route
       : unknown)
   : ParamsDictionary;
 
+/** The interface for route handlers, which are provided via a context
+ * argument. The route handler is expected to return a
+ * {@linkcode RouteResponse} or `undefined` if it cannot handle the request,
+ * which will typically result in a 404 being returned to the client. */
 export interface RouteHandler<
   Response,
   BodyType = unknown,
@@ -62,21 +69,27 @@ interface ErrorHandler {
   ): Response | undefined | Promise<Response | undefined>;
 }
 
-interface RouteOptions<
+/** Options that can be specified when adding a route to the router. */
+export interface RouteOptions<
   R extends string,
   BodyType,
   Params extends RouteParameters<R>,
 > {
   /** An optional deserializer to use when decoding the body. This can be used
-   * to validate the body of the request or hydrate an object.
-   */
+   * to validate the body of the request or hydrate an object. */
   deserializer?: Deserializer<BodyType, Params>;
 
   /** An error handler which is specific to this route, which will be called
-   * when there is
-   */
+   * when there is an error thrown when trying to process the route. */
   errorHandler?: ErrorHandler;
-  serializer?: Serializer;
+
+  /** The serializer is used to serialize a return value of the route handler,
+   * when the value is not a {@linkcode Response} or {@linkcode BodyInit}. The
+   * optional `.stringify()` method of the serializer is expected to return a
+   * JSON string representation of the body returned from the handler, where as
+   * the `.toResponse()` method is expected to return a full
+   * {@linkcode Response} object. */
+  serializer?: Serializer<Params>;
 }
 
 const HTTP_VERBS = [
@@ -148,7 +161,7 @@ interface NotFoundEventInit extends EventInit {
   request: Request;
 }
 
-class NotFoundEvent extends Event {
+export class NotFoundEvent extends Event {
   #request: Request;
 
   get request(): Request {
@@ -169,7 +182,7 @@ interface HandledEventInit extends EventInit {
   route?: Route;
 }
 
-class HandledEvent extends Event {
+export class HandledEvent extends Event {
   #request: Request;
   #response: Response;
   #route?: Route;
@@ -202,7 +215,7 @@ interface RouterErrorEventInit extends ErrorEventInit {
   route?: Route;
 }
 
-class RouterErrorEvent extends ErrorEvent {
+export class RouterErrorEvent extends ErrorEvent {
   #request?: Request;
   #route?: Route;
 
@@ -230,7 +243,7 @@ interface RouterListenEventInit extends EventInit {
   secure: boolean;
 }
 
-class RouterListenEvent extends Event {
+export class RouterListenEvent extends Event {
   #hostname: string;
   #listener: Listener;
   #port: number;
@@ -303,7 +316,7 @@ class Route<
   #errorHandler?: ErrorHandler;
   #params?: Params;
   #route: R;
-  #serializer?: Serializer;
+  #serializer?: Serializer<Params>;
   #urlPattern: URLPattern;
   #verbs: HTTPVerbs[];
 
@@ -346,7 +359,7 @@ class Route<
   }
 
   async handle(request: Request): Promise<Response | undefined> {
-    assert(this.#params);
+    assert(this.#params, "params should have been set in .matches()");
     const context = new Context<BodyType, Params>(
       request,
       this.#params,
@@ -362,16 +375,18 @@ class Route<
       return new Response(result);
     }
     if (result) {
-      return new Response(
-        this.#serializer
-          ? this.#serializer.stringify(result)
-          : JSON.stringify(result),
-        {
-          headers: {
-            "content-type": CONTENT_TYPE_JSON,
+      return this.#serializer?.toResponse
+        ? await this.#serializer.toResponse(result, this.#params, request)
+        : new Response(
+          this.#serializer?.stringify
+            ? await this.#serializer.stringify(result)
+            : JSON.stringify(result),
+          {
+            headers: {
+              "content-type": CONTENT_TYPE_JSON,
+            },
           },
-        },
-      );
+        );
     }
     return undefined;
   }
@@ -411,7 +426,24 @@ class Route<
  * will be used to parse the body. This is designed to make it possible to
  * validate a body or hydrate an object from a request. When a serializer is
  * specified and the handler returns something other than a `Response` or
- * `BodyInit`, the serializer will be used to serialize the response from
+ * `BodyInit`, the serializer will be used to serialize the response from the
+ * route handler, if present, otherwise
+ * [JSON.stringify()](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON/stringify)
+ * will be used to convert the body used in the response.
+ *
+ * Observability of the router is designed using DOM events, where there are
+ * several events which can be listened for:
+ *
+ * - `"error"` - produces a {@linkcode RouterErrorEvent} when an error occurs
+ *   when within the router. This can be used to provide a customized response
+ *   for errors.
+ * - `"listen"` - produces a {@linkcode RouterListenEvent} when the router has
+ *   successfully started listening to requests.
+ * - `"handled"` - produces a {@linkcode HandledEvent} when the router has
+ *   completed handling of a request and has sent the response.
+ * - `"notfound"` - produces a {@linkcode NotFoundEvent} when the router was
+ *   unable to provide a response for a given request. This can be used to
+ *   provide a customized response for not found events.
  *
  * ## Example
  *
@@ -420,9 +452,7 @@ class Route<
  *
  * const router = new Router();
  *
- * router.all("/:id", (ctx) => {
- *   return { id: ctx.params.id };
- * });
+ * router.all("/:id", (ctx) => ({ id: ctx.params.id }));
  *
  * router.listen({ port: 8080 });
  * ```

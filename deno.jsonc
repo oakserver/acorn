@@ -1,5 +1,6 @@
 {
   "tasks": {
+    "example": "deno run --allow-net _examples/server.ts",
     "test": "deno test"
   }
 }
