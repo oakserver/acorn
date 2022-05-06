@@ -119,8 +119,7 @@ const HTTP_VERBS = [
   "PUT",
 ] as const;
 
-const ROUTE_START = "route start";
-const ROUTE_END = "route end";
+const HANDLE_START = "handle start";
 
 type HTTPVerbs = typeof HTTP_VERBS[number];
 
@@ -192,18 +191,21 @@ export class NotFoundEvent extends Event {
 }
 
 interface HandledEventInit extends EventInit {
+  measure: PerformanceMeasure;
   request: Request;
   response: Response;
   route?: Route;
 }
 
 export class HandledEvent extends Event {
+  #measure: PerformanceMeasure;
   #request: Request;
   #response: Response;
   #route?: Route;
 
-  // get measure(): PerformanceEntry {
-  // }
+  get measure(): PerformanceMeasure {
+    return this.#measure;
+  }
 
   get request(): Request {
     return this.#request;
@@ -222,6 +224,7 @@ export class HandledEvent extends Event {
     this.#request = eventInitDict.request;
     this.#response = eventInitDict.response;
     this.#route = eventInitDict.route;
+    this.#measure = eventInitDict.measure;
   }
 }
 
@@ -479,6 +482,7 @@ class Route<
 export class Router extends EventTarget {
   #routes = new Set<Route>();
   #state!: InternalState;
+  #uid = 0;
 
   #add<
     R extends string,
@@ -522,6 +526,8 @@ export class Router extends EventTarget {
   }
 
   async #handle(requestEvent: RequestEvent): Promise<void> {
+    const uid = this.#uid++;
+    performance.mark(`${HANDLE_START} ${uid}`);
     const deferred = new Deferred<Response>();
     requestEvent.respondWith(deferred.promise);
     const { request } = requestEvent;
@@ -531,7 +537,13 @@ export class Router extends EventTarget {
           const response = await route.handle(request);
           if (response) {
             deferred.resolve(response);
-            this.dispatchEvent(new HandledEvent({ request, route, response }));
+            const measure = performance.measure(
+              `handle ${uid}`,
+              `${HANDLE_START} ${uid}`,
+            );
+            this.dispatchEvent(
+              new HandledEvent({ request, route, response, measure }),
+            );
             return;
           }
         } catch (error) {
@@ -540,14 +552,24 @@ export class Router extends EventTarget {
             response = this.#error(request, error);
           }
           deferred.resolve(response);
-          this.dispatchEvent(new HandledEvent({ request, route, response }));
+          const measure = performance.measure(
+            `handle ${uid}`,
+            `${HANDLE_START} ${uid}`,
+          );
+          this.dispatchEvent(
+            new HandledEvent({ request, route, response, measure }),
+          );
           return;
         }
       }
     }
     const response = this.#notFound(requestEvent.request);
     deferred.resolve(response);
-    this.dispatchEvent(new HandledEvent({ request, response }));
+    const measure = performance.measure(
+      `handle ${uid}`,
+      `${HANDLE_START} ${uid}`,
+    );
+    this.dispatchEvent(new HandledEvent({ request, response, measure }));
   }
 
   #notFound(request: Request): Response {
