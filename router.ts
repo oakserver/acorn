@@ -1,7 +1,7 @@
 // Copyright 2022 the oak authors. All rights reserved.
 
 import { Context } from "./context.ts";
-import { contentType, createHttpError, isHttpError, Status } from "./deps.ts";
+import { createHttpError, isHttpError, Status } from "./deps.ts";
 import { NativeHttpServer } from "./http_server_native.ts";
 import {
   type Deserializer,
@@ -11,7 +11,13 @@ import {
   type Serializer,
   type ServerConstructor,
 } from "./types.d.ts";
-import { assert, Deferred, isBodyInit, responseFromHttpError } from "./util.ts";
+import {
+  assert,
+  CONTENT_TYPE_JSON,
+  Deferred,
+  isBodyInit,
+  responseFromHttpError,
+} from "./util.ts";
 
 /** Valid return values from a route handler. */
 export type RouteResponse<Type> = Response | BodyInit | Type;
@@ -48,15 +54,15 @@ export type RouteParameters<Route extends string> = string extends Route
  * {@linkcode RouteResponse} or `undefined` if it cannot handle the request,
  * which will typically result in a 404 being returned to the client. */
 export interface RouteHandler<
-  Response,
+  ResponseType,
   BodyType = unknown,
   Params extends Record<string, string> = Record<string, string>,
 > {
   (
     context: Context<BodyType, Params>,
   ):
-    | Promise<RouteResponse<Response> | undefined>
-    | RouteResponse<Response>
+    | Promise<RouteResponse<ResponseType> | undefined>
+    | RouteResponse<ResponseType>
     | undefined;
 }
 
@@ -92,6 +98,17 @@ export interface RouteOptions<
   serializer?: Serializer<Params>;
 }
 
+/** An interface of route options which also includes the handler, intended to
+ * make it easy to provide a single object to register a route. */
+export interface RouteOptionsWithHandler<
+  R extends string,
+  BodyType,
+  Params extends RouteParameters<R>,
+  ResponseType,
+> extends RouteOptions<R, BodyType, Params> {
+  handler: RouteHandler<ResponseType, BodyType, Params>;
+}
+
 const HTTP_VERBS = [
   "DELETE",
   "GET",
@@ -101,8 +118,6 @@ const HTTP_VERBS = [
   "POST",
   "PUT",
 ] as const;
-
-const CONTENT_TYPE_JSON = contentType("json")!;
 
 const ROUTE_START = "route start";
 const ROUTE_END = "route end";
@@ -372,7 +387,11 @@ class Route<
       return result;
     }
     if (isBodyInit(result)) {
-      return new Response(result);
+      return new Response(result, {
+        headers: {
+          "content-type": CONTENT_TYPE_JSON,
+        },
+      });
     }
     if (result) {
       return this.#serializer?.toResponse
@@ -545,9 +564,15 @@ export class Router extends EventTarget {
     return response;
   }
 
-  /** Add a handler for a route associated with `DELETE`, `GET`, `POST`, and
-   * `PUT` requests. The returned value is a handle which can be used to
-   * unregister the handler. */
+  all<
+    R extends string,
+    Params extends RouteParameters<R>,
+    BodyType,
+    ResponseType,
+  >(
+    route: R,
+    options: RouteOptionsWithHandler<R, BodyType, Params, ResponseType>,
+  ): Destroyable;
   all<
     R extends string,
     Params extends RouteParameters<R>,
@@ -557,9 +582,39 @@ export class Router extends EventTarget {
     route: R,
     handler: RouteHandler<ResponseType, BodyType, Params>,
     options?: RouteOptions<R, BodyType, Params>,
+  ): Destroyable;
+  all<
+    R extends string,
+    Params extends RouteParameters<R>,
+    BodyType,
+    ResponseType,
+  >(
+    route: R,
+    handlerOrOptions:
+      | RouteHandler<ResponseType, BodyType, Params>
+      | RouteOptionsWithHandler<R, BodyType, Params, ResponseType>,
+    options?: RouteOptions<R, BodyType, Params>,
   ): Destroyable {
+    let handler;
+    if (typeof handlerOrOptions === "object") {
+      const { handler: h, ...o } = handlerOrOptions;
+      handler = h;
+      options = o;
+    } else {
+      handler = handlerOrOptions;
+    }
     return this.#add(["DELETE", "GET", "POST", "PUT"], route, handler, options);
   }
+
+  delete<
+    R extends string,
+    Params extends RouteParameters<R>,
+    BodyType,
+    ResponseType,
+  >(
+    route: R,
+    options: RouteOptionsWithHandler<R, BodyType, Params, ResponseType>,
+  ): Destroyable;
   delete<
     R extends string,
     Params extends RouteParameters<R>,
@@ -569,9 +624,39 @@ export class Router extends EventTarget {
     route: R,
     handler: RouteHandler<ResponseType, BodyType, Params>,
     options?: RouteOptions<R, BodyType, Params>,
+  ): Destroyable;
+  delete<
+    R extends string,
+    Params extends RouteParameters<R>,
+    BodyType,
+    ResponseType,
+  >(
+    route: R,
+    handlerOrOptions:
+      | RouteHandler<ResponseType, BodyType, Params>
+      | RouteOptionsWithHandler<R, BodyType, Params, ResponseType>,
+    options?: RouteOptions<R, BodyType, Params>,
   ): Destroyable {
+    let handler;
+    if (typeof handlerOrOptions === "object") {
+      const { handler: h, ...o } = handlerOrOptions;
+      handler = h;
+      options = o;
+    } else {
+      handler = handlerOrOptions;
+    }
     return this.#add(["DELETE"], route, handler, options);
   }
+
+  get<
+    R extends string,
+    Params extends RouteParameters<R>,
+    BodyType,
+    ResponseType,
+  >(
+    route: R,
+    options: RouteOptionsWithHandler<R, BodyType, Params, ResponseType>,
+  ): Destroyable;
   get<
     R extends string,
     Params extends RouteParameters<R>,
@@ -581,9 +666,39 @@ export class Router extends EventTarget {
     route: R,
     handler: RouteHandler<ResponseType, BodyType, Params>,
     options?: RouteOptions<R, BodyType, Params>,
+  ): Destroyable;
+  get<
+    R extends string,
+    Params extends RouteParameters<R>,
+    BodyType,
+    ResponseType,
+  >(
+    route: R,
+    handlerOrOptions:
+      | RouteHandler<ResponseType, BodyType, Params>
+      | RouteOptionsWithHandler<R, BodyType, Params, ResponseType>,
+    options?: RouteOptions<R, BodyType, Params>,
   ): Destroyable {
+    let handler;
+    if (typeof handlerOrOptions === "object") {
+      const { handler: h, ...o } = handlerOrOptions;
+      handler = h;
+      options = o;
+    } else {
+      handler = handlerOrOptions;
+    }
     return this.#add(["GET"], route, handler, options);
   }
+
+  head<
+    R extends string,
+    Params extends RouteParameters<R>,
+    BodyType,
+    ResponseType,
+  >(
+    route: R,
+    options: RouteOptionsWithHandler<R, BodyType, Params, ResponseType>,
+  ): Destroyable;
   head<
     R extends string,
     Params extends RouteParameters<R>,
@@ -593,9 +708,39 @@ export class Router extends EventTarget {
     route: R,
     handler: RouteHandler<ResponseType, BodyType, Params>,
     options?: RouteOptions<R, BodyType, Params>,
+  ): Destroyable;
+  head<
+    R extends string,
+    Params extends RouteParameters<R>,
+    BodyType,
+    ResponseType,
+  >(
+    route: R,
+    handlerOrOptions:
+      | RouteHandler<ResponseType, BodyType, Params>
+      | RouteOptionsWithHandler<R, BodyType, Params, ResponseType>,
+    options?: RouteOptions<R, BodyType, Params>,
   ): Destroyable {
+    let handler;
+    if (typeof handlerOrOptions === "object") {
+      const { handler: h, ...o } = handlerOrOptions;
+      handler = h;
+      options = o;
+    } else {
+      handler = handlerOrOptions;
+    }
     return this.#add(["HEAD"], route, handler, options);
   }
+
+  options<
+    R extends string,
+    Params extends RouteParameters<R>,
+    BodyType,
+    ResponseType,
+  >(
+    route: R,
+    options: RouteOptionsWithHandler<R, BodyType, Params, ResponseType>,
+  ): Destroyable;
   options<
     R extends string,
     Params extends RouteParameters<R>,
@@ -605,9 +750,39 @@ export class Router extends EventTarget {
     route: R,
     handler: RouteHandler<ResponseType, BodyType, Params>,
     options?: RouteOptions<R, BodyType, Params>,
+  ): Destroyable;
+  options<
+    R extends string,
+    Params extends RouteParameters<R>,
+    BodyType,
+    ResponseType,
+  >(
+    route: R,
+    handlerOrOptions:
+      | RouteHandler<ResponseType, BodyType, Params>
+      | RouteOptionsWithHandler<R, BodyType, Params, ResponseType>,
+    options?: RouteOptions<R, BodyType, Params>,
   ): Destroyable {
+    let handler;
+    if (typeof handlerOrOptions === "object") {
+      const { handler: h, ...o } = handlerOrOptions;
+      handler = h;
+      options = o;
+    } else {
+      handler = handlerOrOptions;
+    }
     return this.#add(["OPTIONS"], route, handler, options);
   }
+
+  patch<
+    R extends string,
+    Params extends RouteParameters<R>,
+    BodyType,
+    ResponseType,
+  >(
+    route: R,
+    options: RouteOptionsWithHandler<R, BodyType, Params, ResponseType>,
+  ): Destroyable;
   patch<
     R extends string,
     Params extends RouteParameters<R>,
@@ -617,9 +792,39 @@ export class Router extends EventTarget {
     route: R,
     handler: RouteHandler<ResponseType, BodyType, Params>,
     options?: RouteOptions<R, BodyType, Params>,
+  ): Destroyable;
+  patch<
+    R extends string,
+    Params extends RouteParameters<R>,
+    BodyType,
+    ResponseType,
+  >(
+    route: R,
+    handlerOrOptions:
+      | RouteHandler<ResponseType, BodyType, Params>
+      | RouteOptionsWithHandler<R, BodyType, Params, ResponseType>,
+    options?: RouteOptions<R, BodyType, Params>,
   ): Destroyable {
+    let handler;
+    if (typeof handlerOrOptions === "object") {
+      const { handler: h, ...o } = handlerOrOptions;
+      handler = h;
+      options = o;
+    } else {
+      handler = handlerOrOptions;
+    }
     return this.#add(["PATCH"], route, handler, options);
   }
+
+  post<
+    R extends string,
+    Params extends RouteParameters<R>,
+    BodyType,
+    ResponseType,
+  >(
+    route: R,
+    options: RouteOptionsWithHandler<R, BodyType, Params, ResponseType>,
+  ): Destroyable;
   post<
     R extends string,
     Params extends RouteParameters<R>,
@@ -629,9 +834,39 @@ export class Router extends EventTarget {
     route: R,
     handler: RouteHandler<ResponseType, BodyType, Params>,
     options?: RouteOptions<R, BodyType, Params>,
+  ): Destroyable;
+  post<
+    R extends string,
+    Params extends RouteParameters<R>,
+    BodyType,
+    ResponseType,
+  >(
+    route: R,
+    handlerOrOptions:
+      | RouteHandler<ResponseType, BodyType, Params>
+      | RouteOptionsWithHandler<R, BodyType, Params, ResponseType>,
+    options?: RouteOptions<R, BodyType, Params>,
   ): Destroyable {
+    let handler;
+    if (typeof handlerOrOptions === "object") {
+      const { handler: h, ...o } = handlerOrOptions;
+      handler = h;
+      options = o;
+    } else {
+      handler = handlerOrOptions;
+    }
     return this.#add(["POST"], route, handler, options);
   }
+
+  put<
+    R extends string,
+    Params extends RouteParameters<R>,
+    BodyType,
+    ResponseType,
+  >(
+    route: R,
+    options: RouteOptionsWithHandler<R, BodyType, Params, ResponseType>,
+  ): Destroyable;
   put<
     R extends string,
     Params extends RouteParameters<R>,
@@ -641,7 +876,27 @@ export class Router extends EventTarget {
     route: R,
     handler: RouteHandler<ResponseType, BodyType, Params>,
     options?: RouteOptions<R, BodyType, Params>,
+  ): Destroyable;
+  put<
+    R extends string,
+    Params extends RouteParameters<R>,
+    BodyType,
+    ResponseType,
+  >(
+    route: R,
+    handlerOrOptions:
+      | RouteHandler<ResponseType, BodyType, Params>
+      | RouteOptionsWithHandler<R, BodyType, Params, ResponseType>,
+    options?: RouteOptions<R, BodyType, Params>,
   ): Destroyable {
+    let handler;
+    if (typeof handlerOrOptions === "object") {
+      const { handler: h, ...o } = handlerOrOptions;
+      handler = h;
+      options = o;
+    } else {
+      handler = handlerOrOptions;
+    }
     return this.#add(["PUT"], route, handler, options);
   }
 

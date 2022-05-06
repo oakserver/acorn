@@ -27,11 +27,13 @@
  */
 
 export { type Context } from "./context.ts";
+export { immutable } from "./handlers.ts";
 export {
   HandledEvent,
   NotFoundEvent,
   type RouteHandler,
   type RouteOptions,
+  type RouteOptionsWithHandler,
   type RouteParameters,
   Router,
   RouterErrorEvent,

@@ -1,5 +1,7 @@
 import { accepts, contentType, type HttpError, STATUS_TEXT } from "./deps.ts";
 
+export const CONTENT_TYPE_JSON = contentType("json")!;
+
 export function assert(
   cond: unknown,
   message = "Assertion Error",
