@@ -29,7 +29,6 @@ export class Context<
   }
 
   async body(): Promise<BodyType | undefined> {
-    console.log("bodyset", this.#bodySet, "body used", this.#request.bodyUsed);
     if (this.#bodySet) {
       return this.#body;
     }
