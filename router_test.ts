@@ -4,6 +4,6 @@ Deno.test({
   name: "Router - basic usage",
   fn() {
     const router = new Router();
-    router.all("/:id", (ctx) => {});
+    router.all("/:id", () => {});
   },
 });

@@ -27,6 +27,7 @@
  */
 
 export { type Context } from "./context.ts";
+export { type KeyRing, type SigningData, type SigningKey } from "./deps.ts";
 export { immutable } from "./handlers.ts";
 export {
   HandledEvent,

@@ -1,4 +1,14 @@
+// Copyright 2022 the oak authors. All rights reserved.
+
+import { type Cookies } from "./deps.ts";
 import { type Deserializer } from "./types.d.ts";
+
+interface ContextOptions<BodyType, Params extends Record<string, string>> {
+  cookies: Cookies;
+  deserializer?: Deserializer<BodyType, Params>;
+  params: Params;
+  request: Request;
+}
 
 export class Context<
   BodyType = unknown,
@@ -6,9 +16,14 @@ export class Context<
 > {
   #body?: BodyType;
   #bodySet = false;
+  #cookies: Cookies;
   #deserializer?: Deserializer<BodyType, Params>;
   #params: Params;
   #request: Request;
+
+  get cookies(): Cookies {
+    return this.#cookies;
+  }
 
   get params(): Params {
     return this.#params;
@@ -19,13 +34,15 @@ export class Context<
   }
 
   constructor(
-    request: Request,
-    params: Params,
-    deserializer?: Deserializer<BodyType, Params>,
+    { request, params, deserializer, cookies }: ContextOptions<
+      BodyType,
+      Params
+    >,
   ) {
     this.#request = request;
     this.#params = params;
     this.#deserializer = deserializer;
+    this.#cookies = cookies;
   }
 
   async body(): Promise<BodyType | undefined> {

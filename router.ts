@@ -1,7 +1,13 @@
 // Copyright 2022 the oak authors. All rights reserved.
 
 import { Context } from "./context.ts";
-import { createHttpError, isHttpError, Status } from "./deps.ts";
+import {
+  Cookies,
+  createHttpError,
+  isHttpError,
+  type KeyRing,
+  Status,
+} from "./deps.ts";
 import { NativeHttpServer } from "./http_server_native.ts";
 import {
   type Deserializer,
@@ -319,7 +325,17 @@ interface InternalState {
   closing: boolean;
   handling: Set<Promise<void>>;
   server: ServerConstructor;
-  secure: boolean;
+}
+
+export interface RouterOptions {
+  keys?: KeyRing;
+}
+
+function appendHeaders(response: Response, headers: Headers): Response {
+  for (const [key, value] of headers) {
+    response.headers.append(key, value);
+  }
+  return response;
 }
 
 class Route<
@@ -376,39 +392,50 @@ class Route<
     }
   }
 
-  async handle(request: Request): Promise<Response | undefined> {
+  async handle(
+    request: Request,
+    secure: boolean,
+    keys?: KeyRing,
+  ): Promise<Response | undefined> {
     assert(this.#params, "params should have been set in .matches()");
+    const headers = new Headers();
+    const cookies = new Cookies(request.headers, headers, {
+      keys,
+      secure,
+    });
     const context = new Context<BodyType, Params>(
-      request,
-      this.#params,
-      this.#deserializer,
+      {
+        cookies,
+        deserializer: this.#deserializer,
+        params: this.#params,
+        request,
+      },
     );
     const result = (await this.#handler(context)) as RouteResponse<
       ResponseType
     >;
     if (result instanceof Response) {
-      return result;
+      return appendHeaders(result, headers);
     }
     if (isBodyInit(result)) {
-      return new Response(result, {
-        headers: {
-          "content-type": CONTENT_TYPE_JSON,
-        },
-      });
+      headers.set("content-type", CONTENT_TYPE_JSON);
+      return new Response(result, { headers });
     }
     if (result) {
-      return this.#serializer?.toResponse
-        ? await this.#serializer.toResponse(result, this.#params, request)
-        : new Response(
+      if (this.#serializer?.toResponse) {
+        return appendHeaders(
+          await this.#serializer.toResponse(result, this.#params, request),
+          headers,
+        );
+      } else {
+        headers.set("content-type", CONTENT_TYPE_JSON);
+        return new Response(
           this.#serializer?.stringify
             ? await this.#serializer.stringify(result)
             : JSON.stringify(result),
-          {
-            headers: {
-              "content-type": CONTENT_TYPE_JSON,
-            },
-          },
+          { headers },
         );
+      }
     }
     return undefined;
   }
@@ -435,6 +462,14 @@ class Route<
  * [`Response`](https://developer.mozilla.org/en-US/docs/Web/API/Response)
  * instance, {@linkcode BodyInit} value, or any other object which will be to be
  * serialized to a JSON string as set as the value of the response body.
+ *
+ * The handler context includes a property named `cookies` which is an instance
+ * of {@linkcode Cookies}, which provides an interface for reading request
+ * cookies and setting cookies in the response. `Cookies` supports cryptographic
+ * signing of keys using a key ring which adheres to the {@linkcode KeyRing}
+ * interface, which can be passed as an option when creating the router.
+ * [KeyStack](https://doc.deno.land/https://deno.land/x/oak_commons/key_stack.ts/~/KeyStack)
+ * is a key ring that implements this interface.
  *
  * The route is specified using the pathname part of the
  * [`URLPattern` API](https://developer.mozilla.org/en-US/docs/Web/API/URL_Pattern_API),
@@ -480,7 +515,9 @@ class Route<
  * ```
  */
 export class Router extends EventTarget {
+  #keys?: KeyRing;
   #routes = new Set<Route>();
+  #secure = false;
   #state!: InternalState;
   #uid = 0;
 
@@ -534,7 +571,7 @@ export class Router extends EventTarget {
     for (const route of this.#routes) {
       if (route.matches(request)) {
         try {
-          const response = await route.handle(request);
+          const response = await route.handle(request, this.#secure);
           if (response) {
             deferred.resolve(response);
             const measure = performance.measure(
@@ -584,6 +621,11 @@ export class Router extends EventTarget {
       );
     }
     return response;
+  }
+
+  constructor(options: RouterOptions = {}) {
+    super();
+    this.#keys = options.keys;
   }
 
   all<
@@ -922,8 +964,9 @@ export class Router extends EventTarget {
     return this.#add(["PUT"], route, handler, options);
   }
 
-  handle(request: Request): Promise<Response> {
+  handle(request: Request, secure = false): Promise<Response> {
     const deferred = new Deferred<Response>();
+    this.#secure = secure;
     this.#handle({
       request,
       respondWith(response: Response | Promise<Response>): Promise<void> {
@@ -950,8 +993,8 @@ export class Router extends EventTarget {
       closing: false,
       handling: new Set<Promise<void>>(),
       server: Server,
-      secure,
     };
+    this.#secure = secure;
     if (signal) {
       signal.addEventListener("abort", () => {
         if (!this.#state.handling.size) {

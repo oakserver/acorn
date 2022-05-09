@@ -4,6 +4,7 @@ import {
   assert,
   assertEquals,
 } from "https://deno.land/std@0.138.0/testing/asserts.ts";
+import { Cookies } from "./deps.ts";
 import { Context } from "./context.ts";
 
 import { immutable } from "./handlers.ts";
@@ -13,7 +14,11 @@ Deno.test({
   async fn() {
     const handlerWithOptions = immutable({ hello: "world" });
     assertEquals(Object.keys(handlerWithOptions), ["handler"]);
-    const context = new Context(new Request("https://example.com/"), {});
+    const context = new Context({
+      request: new Request("https://example.com/"),
+      params: {},
+      cookies: new Cookies(new Headers(), new Headers()),
+    });
     const response = await handlerWithOptions.handler(context);
     assert(response instanceof Response);
     assertEquals([...response.headers], [[
