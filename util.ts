@@ -53,8 +53,11 @@ export function isBodyInit(value: unknown): value is BodyInit {
 export function responseFromHttpError(
   request: Request,
   error: HttpError,
+  preferJson: boolean,
 ): Response {
-  const acceptsContent = accepts(request, "text/html", "application/json");
+  const acceptsContent = preferJson
+    ? accepts(request, "application/json", "text/html")
+    : accepts(request, "text/html", "application/json");
   let bodyInit;
   switch (acceptsContent) {
     case "text/html":

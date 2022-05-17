@@ -328,7 +328,13 @@ interface InternalState {
 }
 
 export interface RouterOptions {
+  /** A key ring which will be used for signing and validating cookies. */
   keys?: KeyRing;
+  /** When providing internal responses, like on unhandled errors, prefer JSON
+   * responses to HTML responses. When set to `false` HTML will be preferred
+   * when responding, but content type negotiation will still be respected.
+   *  Defaults to `true`. */
+  preferJson?: boolean;
 }
 
 function appendHeaders(response: Response, headers: Headers): Response {
@@ -516,6 +522,7 @@ class Route<
  */
 export class Router extends EventTarget {
   #keys?: KeyRing;
+  #preferJson: boolean;
   #routes = new Set<Route>();
   #secure = false;
   #state!: InternalState;
@@ -548,7 +555,7 @@ export class Router extends EventTarget {
     let response = event.response;
     if (!response) {
       if (isHttpError(error)) {
-        response = responseFromHttpError(request, error);
+        response = responseFromHttpError(request, error, this.#preferJson);
       } else {
         const message = error instanceof Error
           ? error.message
@@ -556,6 +563,7 @@ export class Router extends EventTarget {
         response = responseFromHttpError(
           request,
           createHttpError(Status.InternalServerError, message),
+          this.#preferJson,
         );
       }
     }
@@ -571,7 +579,11 @@ export class Router extends EventTarget {
     for (const route of this.#routes) {
       if (route.matches(request)) {
         try {
-          const response = await route.handle(request, this.#secure);
+          const response = await route.handle(
+            request,
+            this.#secure,
+            this.#keys,
+          );
           if (response) {
             deferred.resolve(response);
             const measure = performance.measure(
@@ -618,6 +630,7 @@ export class Router extends EventTarget {
       response = responseFromHttpError(
         request,
         createHttpError(Status.NotFound, message),
+        this.#preferJson,
       );
     }
     return response;
@@ -625,7 +638,9 @@ export class Router extends EventTarget {
 
   constructor(options: RouterOptions = {}) {
     super();
-    this.#keys = options.keys;
+    const { keys, preferJson = true } = options;
+    this.#keys = keys;
+    this.#preferJson = preferJson;
   }
 
   all<
