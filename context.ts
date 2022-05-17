@@ -48,12 +48,12 @@ export class Context<
     return this.#request;
   }
 
-  /** Any {@linkcode URLSearchParams} associated with the request. */
-  get searchParams(): URLSearchParams {
+  /** Any search parameters associated with the request. */
+  get searchParams(): Record<string, string> {
     if (!this.#requestUrl) {
       this.#requestUrl = new URL(this.#request.url);
     }
-    return this.#requestUrl.searchParams;
+    return Object.fromEntries(this.#requestUrl.searchParams.entries());
   }
 
   constructor(
