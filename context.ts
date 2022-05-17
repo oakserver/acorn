@@ -87,4 +87,9 @@ export class Context<
     }
     return this.#body;
   }
+
+  /** Returns the request URL as a parsed {@linkcode URL} object. */
+  url(): URL {
+    return new URL(this.#request.url);
+  }
 }
