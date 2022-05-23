@@ -58,6 +58,7 @@ export function responseFromHttpError(
   const acceptsContent = preferJson
     ? accepts(request, "application/json", "text/html")
     : accepts(request, "text/html", "application/json");
+  console.log(preferJson, acceptsContent);
   let bodyInit;
   switch (acceptsContent) {
     case "text/html":

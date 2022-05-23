@@ -209,18 +209,23 @@ export class HandledEvent extends Event {
   #response: Response;
   #route?: Route;
 
+  /** The performance measure from the start of handling the route until it
+   * finished, which can provide timing information about the processing. */
   get measure(): PerformanceMeasure {
     return this.#measure;
   }
 
+  /** The {@linkcode Request} that was handled. */
   get request(): Request {
     return this.#request;
   }
 
+  /** The {@linkcode Response} that was handled. */
   get response(): Response {
     return this.#response;
   }
 
+  /** The {@linkcode Route} that was matched. */
   get route(): Route | undefined {
     return this.#route;
   }
@@ -236,19 +241,40 @@ export class HandledEvent extends Event {
 
 interface RouterErrorEventInit extends ErrorEventInit {
   request?: Request;
+  respondable?: boolean;
   route?: Route;
 }
 
+/** Error events from the router will be of this type, which provides additional
+ * context about the error and provides a way to override the default behaviors
+ * of the router. */
 export class RouterErrorEvent extends ErrorEvent {
   #request?: Request;
+  #respondable: boolean;
   #route?: Route;
 
+  /** The original {@linkcode Request} object. */
   get request(): Request | undefined {
     return this.#request;
   }
 
+  /** To provide a custom response to an error event set a {@linkcode Response}
+   * to this property and it will be used instead of the built in default.
+   *
+   * The `.respondable` property will indicate if a response to the client is
+   * possible or not.
+   */
   response?: Response;
 
+  /** Indicates if the error can be responded to. `true` indicates that a
+   * `Response` has not been sent to the client yet, while `false` indicates
+   * that a response cannot be sent. */
+  get respondable(): boolean {
+    return this.#respondable;
+  }
+
+  /** If the error occurred while processing a route, the {@linkcode Route} will
+   * be available on this property. */
   get route(): Route | undefined {
     return this.#route;
   }
@@ -256,6 +282,7 @@ export class RouterErrorEvent extends ErrorEvent {
   constructor(eventInitDict: RouterErrorEventInit) {
     super("error", eventInitDict);
     this.#request = eventInitDict.request;
+    this.#respondable = eventInitDict.respondable ?? false;
     this.#route = eventInitDict.route;
   }
 }
@@ -267,24 +294,30 @@ interface RouterListenEventInit extends EventInit {
   secure: boolean;
 }
 
+/** The event class that is emitted when the router starts listening. */
 export class RouterListenEvent extends Event {
   #hostname: string;
   #listener: Listener;
   #port: number;
   #secure: boolean;
 
+  /** The hostname that is being listened on. */
   get hostname(): string {
     return this.#hostname;
   }
 
+  /** A reference to the {@linkcode Listener} being listened to. */
   get listener(): Listener {
     return this.#listener;
   }
 
+  /** The port that is being listened on. */
   get port(): number {
     return this.#port;
   }
 
+  /** A flag to indicate if the router believes it is running in a secure
+   * context (e.g. TLS/HTTPS). */
   get secure(): boolean {
     return this.#secure;
   }
@@ -548,9 +581,14 @@ export class Router extends EventTarget {
     return r;
   }
 
-  #error(request: Request, error: unknown): Response {
+  #error(request: Request, error: unknown, respondable: boolean): Response {
     const message = error instanceof Error ? error.message : "Internal error";
-    const event = new RouterErrorEvent({ request, error, message });
+    const event = new RouterErrorEvent({
+      request,
+      error,
+      message,
+      respondable,
+    });
     this.dispatchEvent(event);
     let response = event.response;
     if (!response) {
@@ -574,7 +612,9 @@ export class Router extends EventTarget {
     const uid = this.#uid++;
     performance.mark(`${HANDLE_START} ${uid}`);
     const deferred = new Deferred<Response>();
-    requestEvent.respondWith(deferred.promise);
+    requestEvent.respondWith(deferred.promise).catch((error) =>
+      this.#error(requestEvent.request, error, false)
+    );
     const { request } = requestEvent;
     for (const route of this.#routes) {
       if (route.matches(request)) {
@@ -598,7 +638,7 @@ export class Router extends EventTarget {
         } catch (error) {
           let response = await route.error(request, error);
           if (!response) {
-            response = this.#error(request, error);
+            response = this.#error(request, error, true);
           }
           deferred.resolve(response);
           const measure = performance.measure(
