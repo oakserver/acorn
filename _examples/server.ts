@@ -53,6 +53,20 @@ const router = new Router();
 // The root of the router serves up some immutable JSON
 router.get("/", immutable({ hello: "world" }));
 
+// The route `/html` demonstrates returning an an immutable HTML string.
+router.get(
+  "/html",
+  immutable(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>Example returning html</title>
+</head>
+<body>
+  <h1>Example returning HTML</h1>
+</body>
+</html>`),
+);
+
 // We then have an API which attempts to fetch the book.
 router.get("/books/:id", async (ctx) => {
   const body = await ctx.body();

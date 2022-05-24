@@ -10,7 +10,14 @@ import {
   type RouteOptionsWithHandler,
   type RouteParameters,
 } from "./router.ts";
-import { CONTENT_TYPE_JSON, isBodyInit } from "./util.ts";
+import {
+  CONTENT_TYPE_HTML,
+  CONTENT_TYPE_JSON,
+  CONTENT_TYPE_TEXT,
+  isBodyInit,
+  isHtmlLike,
+  isJsonLike,
+} from "./util.ts";
 
 /** Intended to provide an immutable response handler for a route.
  *
@@ -55,9 +62,19 @@ export function immutable<
           ctx.request,
         );
       } else if (isBodyInit(response)) {
-        finalResponse = new Response(response, {
-          headers: { "content-type": CONTENT_TYPE_JSON },
-        });
+        const headers = new Headers();
+        if (typeof response === "string") {
+          if (isHtmlLike(response)) {
+            headers.set("content-type", CONTENT_TYPE_HTML);
+          } else if (isJsonLike(response)) {
+            headers.set("content-type", CONTENT_TYPE_JSON);
+          } else {
+            headers.set("content-type", CONTENT_TYPE_TEXT);
+          }
+        } else {
+          headers.set("content-type", CONTENT_TYPE_JSON);
+        }
+        finalResponse = new Response(response, { headers });
       } else {
         const bodyInit = options?.serializer?.stringify
           ? await options.serializer.stringify(response)

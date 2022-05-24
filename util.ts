@@ -1,6 +1,8 @@
 import { accepts, contentType, type HttpError, STATUS_TEXT } from "./deps.ts";
 
+export const CONTENT_TYPE_HTML = contentType("html")!;
 export const CONTENT_TYPE_JSON = contentType("json")!;
+export const CONTENT_TYPE_TEXT = contentType("text/plain")!;
 
 export function assert(
   cond: unknown,
@@ -11,7 +13,7 @@ export function assert(
   }
 }
 
-/** A class which provides an "unwraped" promise. */
+/** A class which provides an "unwrapped" promise. */
 export class Deferred<T> {
   #promise: Promise<T>;
   // deno-lint-ignore no-explicit-any
@@ -45,6 +47,16 @@ export function isBodyInit(value: unknown): value is BodyInit {
     ArrayBuffer.isView(value) || value instanceof FormData ||
     value instanceof URLSearchParams || value instanceof ReadableStream ||
     typeof value === "string";
+}
+
+/** Determines if a string looks like HTML. */
+export function isHtmlLike(value: string): boolean {
+  return /^\s*<(?:!DOCTYPE|html|body)/i.test(value);
+}
+
+/** Determines if the string looks like JSON. */
+export function isJsonLike(value: string): boolean {
+  return /^\s*["{[]/.test(value);
 }
 
 /** Generate a `Response` based on the original `Request` and an `HttpError`.

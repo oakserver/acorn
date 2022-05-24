@@ -19,9 +19,13 @@ import {
 } from "./types.d.ts";
 import {
   assert,
+  CONTENT_TYPE_HTML,
   CONTENT_TYPE_JSON,
+  CONTENT_TYPE_TEXT,
   Deferred,
   isBodyInit,
+  isHtmlLike,
+  isJsonLike,
   responseFromHttpError,
 } from "./util.ts";
 
@@ -457,7 +461,17 @@ class Route<
       return appendHeaders(result, headers);
     }
     if (isBodyInit(result)) {
-      headers.set("content-type", CONTENT_TYPE_JSON);
+      if (typeof result === "string") {
+        if (isHtmlLike(result)) {
+          headers.set("content-type", CONTENT_TYPE_HTML);
+        } else if (isJsonLike(result)) {
+          headers.set("content-type", CONTENT_TYPE_JSON);
+        } else {
+          headers.set("content-type", CONTENT_TYPE_TEXT);
+        }
+      } else {
+        headers.set("content-type", CONTENT_TYPE_JSON);
+      }
       return new Response(result, { headers });
     }
     if (result) {
