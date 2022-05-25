@@ -8,6 +8,12 @@ export {
 } from "https://deno.land/x/oak_commons@0.3.1/http_errors.ts";
 export { accepts } from "https://deno.land/x/oak_commons@0.3.1/negotiation.ts";
 export {
+  isClientErrorStatus,
+  isErrorStatus,
+  isInformationalStatus,
+  isRedirectStatus,
+  isServerErrorStatus,
+  isSuccessfulStatus,
   Status,
   STATUS_TEXT,
 } from "https://deno.land/x/oak_commons@0.3.1/status.ts";

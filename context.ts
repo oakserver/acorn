@@ -13,7 +13,7 @@ import { type Deserializer } from "./types.d.ts";
 interface ContextOptions<BodyType, Params extends Record<string, string>> {
   cookies: Cookies;
   deserializer?: Deserializer<BodyType, Params>;
-  params: Params;
+  params?: Params;
   request: Request;
 }
 
@@ -63,7 +63,7 @@ export class Context<
     >,
   ) {
     this.#request = request;
-    this.#params = params;
+    this.#params = params ?? {} as Params;
     this.#deserializer = deserializer;
     this.#cookies = cookies;
   }

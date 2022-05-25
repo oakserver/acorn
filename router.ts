@@ -4,7 +4,13 @@ import { Context } from "./context.ts";
 import {
   Cookies,
   createHttpError,
+  isClientErrorStatus,
+  isErrorStatus,
   isHttpError,
+  isInformationalStatus,
+  isRedirectStatus,
+  isServerErrorStatus,
+  isSuccessfulStatus,
   type KeyRing,
   Status,
 } from "./deps.ts";
@@ -76,6 +82,17 @@ export interface RouteHandler<
     | undefined;
 }
 
+export interface StatusHandler<S extends Status> {
+  (
+    context: Context<unknown, Record<string, string>>,
+    status: S,
+    response?: Response,
+  ):
+    | Promise<RouteResponse<unknown> | undefined>
+    | RouteResponse<unknown>
+    | undefined;
+}
+
 /** An error handler is tied to a specific route and can implement custom logic
  * to deal with an error that occurred when processing the route. */
 interface ErrorHandler {
@@ -133,6 +150,28 @@ const HANDLE_START = "handle start";
 
 type HTTPVerbs = typeof HTTP_VERBS[number];
 
+/** A string that represents a range of HTTP response {@linkcode Status} codes:
+ *
+ * - `"*"` - matches any status code
+ * - `"info"` - matches information status codes (`100`-`199`)
+ * - `"success"` - matches successful status codes (`200`-`299`)
+ * - `"redirect"` - matches redirection status codes (`300`-`399`)
+ * - `"client-error"` - matches client error status codes (`400`-`499`)
+ * - `"server-error"` - matches server error status codes (`500`-`599`)
+ * - `"error"` - matches any error status code (`400`-`599`)
+ */
+export type StatusRange =
+  | "*"
+  | "info"
+  | "success"
+  | "redirect"
+  | "client-error"
+  | "server-error"
+  | "error";
+
+/** A {@linkcode Status} code or a shorthand {@linkcode StatusRange} string. */
+export type StatusAndRanges = Status | StatusRange;
+
 interface NotFoundEventListener {
   (evt: NotFoundEvent): void | Promise<void>;
 }
@@ -180,6 +219,18 @@ interface RouterListenEventListenerObject {
 type RouterListenEventListenerOrEventListenerObject =
   | RouterListenEventListener
   | RouterListenEventListenerObject;
+
+interface RouterRequestEventListener {
+  (evt: RouterRequestEvent): void | Promise<void>;
+}
+
+interface RouterRequestEventListenerObject {
+  handleEvent(evt: RouterRequestEvent): void | Promise<void>;
+}
+
+type RouterRequestListenerOrEventListenerObject =
+  | RouterRequestEventListener
+  | RouterRequestEventListenerObject;
 
 interface NotFoundEventInit extends EventInit {
   request: Request;
@@ -335,6 +386,39 @@ export class RouterListenEvent extends Event {
   }
 }
 
+export interface RouterRequestEventInit extends EventInit {
+  cookies: Cookies;
+  request: Request;
+  responseHeaders: Headers;
+}
+
+export class RouterRequestEvent extends Event {
+  #cookies: Cookies;
+  #request: Request;
+  #responseHeaders: Headers;
+
+  get cookies(): Cookies {
+    return this.#cookies;
+  }
+
+  get request(): Request {
+    return this.#request;
+  }
+
+  response?: Response;
+
+  get responseHeaders(): Headers {
+    return this.#responseHeaders;
+  }
+
+  constructor(eventInitDict: RouterRequestEventInit) {
+    super("request", eventInitDict);
+    this.#cookies = eventInitDict.cookies;
+    this.#request = eventInitDict.request;
+    this.#responseHeaders = eventInitDict.responseHeaders;
+  }
+}
+
 interface ListenOptionsBase {
   hostname?: string;
   port?: number;
@@ -437,11 +521,11 @@ class Route<
 
   async handle(
     request: Request,
+    headers: Headers,
     secure: boolean,
     keys?: KeyRing,
   ): Promise<Response | undefined> {
     assert(this.#params, "params should have been set in .matches()");
-    const headers = new Headers();
     const cookies = new Cookies(request.headers, headers, {
       keys,
       secure,
@@ -454,9 +538,7 @@ class Route<
         request,
       },
     );
-    const result = (await this.#handler(context)) as RouteResponse<
-      ResponseType
-    >;
+    const result = await this.#handler(context);
     if (result instanceof Response) {
       return appendHeaders(result, headers);
     }
@@ -500,6 +582,111 @@ class Route<
         this.#params = result.pathname.groups as Params;
       }
       return !!result;
+    }
+    return false;
+  }
+}
+
+class StatusRoute<S extends Status> {
+  #destroyHandle: Destroyable;
+  #handler: StatusHandler<S>;
+  #status: StatusAndRanges[];
+
+  constructor(
+    status: StatusAndRanges[],
+    handler: StatusHandler<S>,
+    destroyHandle: Destroyable,
+  ) {
+    this.#destroyHandle = destroyHandle;
+    this.#handler = handler;
+    this.#status = status;
+  }
+
+  destroy(): void {
+    this.#destroyHandle.destroy();
+  }
+
+  async handle(
+    status: Status,
+    request: Request,
+    response: Response | undefined,
+    responseHeaders: Headers,
+    secure: boolean,
+    keys?: KeyRing,
+  ): Promise<Response | undefined> {
+    const headers = response ? new Headers(response.headers) : responseHeaders;
+    const cookies = new Cookies(request.headers, headers, {
+      keys,
+      secure,
+    });
+    const context = new Context({ cookies, request });
+    const result = await this.#handler(context, status as S, response);
+    if (result instanceof Response) {
+      return appendHeaders(result, headers);
+    }
+    if (isBodyInit(result)) {
+      if (typeof result === "string") {
+        if (isHtmlLike(result)) {
+          headers.set("content-type", CONTENT_TYPE_HTML);
+        } else if (isJsonLike(result)) {
+          headers.set("content-type", CONTENT_TYPE_JSON);
+        } else {
+          headers.set("content-type", CONTENT_TYPE_TEXT);
+        }
+      } else {
+        headers.set("content-type", CONTENT_TYPE_JSON);
+      }
+      return new Response(result, { status, headers });
+    }
+    if (result) {
+      headers.set("content-type", CONTENT_TYPE_JSON);
+      return new Response(JSON.stringify(result), { status, headers });
+    }
+    return undefined;
+  }
+
+  matches(status: Status): boolean {
+    for (const item of this.#status) {
+      if (typeof item === "number") {
+        if (status === item) {
+          return true;
+        } else {
+          continue;
+        }
+      }
+      switch (item) {
+        case "*":
+          return true;
+        case "info":
+          if (isInformationalStatus(status)) {
+            return true;
+          }
+          break;
+        case "success":
+          if (isSuccessfulStatus(status)) {
+            return true;
+          }
+          break;
+        case "redirect":
+          if (isRedirectStatus(status)) {
+            return true;
+          }
+          break;
+        case "client-error":
+          if (isClientErrorStatus(status)) {
+            return true;
+          }
+          break;
+        case "server-error":
+          if (isServerErrorStatus(status)) {
+            return true;
+          }
+          break;
+        case "error":
+          if (isErrorStatus(status)) {
+            return true;
+          }
+      }
     }
     return false;
   }
@@ -573,6 +760,7 @@ export class Router extends EventTarget {
   #routes = new Set<Route>();
   #secure = false;
   #state!: InternalState;
+  #statusRoutes = new Set<StatusRoute<Status>>();
   #uid = 0;
 
   #add<
@@ -622,6 +810,34 @@ export class Router extends EventTarget {
     return response;
   }
 
+  async #handleStatus(
+    status: Status,
+    request: Request,
+    responseHeaders: Headers,
+    response?: Response,
+  ): Promise<Response | undefined> {
+    for (const route of this.#statusRoutes) {
+      if (route.matches(status)) {
+        try {
+          const result = await route.handle(
+            status,
+            request,
+            response,
+            responseHeaders,
+            this.#secure,
+            this.#keys,
+          );
+          if (result) {
+            response = result;
+          }
+        } catch (error) {
+          return this.#error(request, error, true);
+        }
+      }
+    }
+    return response;
+  }
+
   async #handle(requestEvent: RequestEvent): Promise<void> {
     const uid = this.#uid++;
     performance.mark(`${HANDLE_START} ${uid}`);
@@ -630,15 +846,59 @@ export class Router extends EventTarget {
       this.#error(requestEvent.request, error, false)
     );
     const { request } = requestEvent;
-    for (const route of this.#routes) {
-      if (route.matches(request)) {
-        try {
-          const response = await route.handle(
-            request,
-            this.#secure,
-            this.#keys,
-          );
-          if (response) {
+    const responseHeaders = new Headers();
+    const cookies = new Cookies(request.headers, responseHeaders, {
+      keys: this.#keys,
+      secure: this.#secure,
+    });
+    const routerRequestEvent = new RouterRequestEvent({
+      cookies,
+      request,
+      responseHeaders,
+    });
+    if (
+      this.dispatchEvent(routerRequestEvent) || !routerRequestEvent.response
+    ) {
+      for (const route of this.#routes) {
+        if (route.matches(request)) {
+          try {
+            const response = await route.handle(
+              request,
+              responseHeaders,
+              this.#secure,
+              this.#keys,
+            );
+            if (response) {
+              const result = await this.#handleStatus(
+                response.status,
+                request,
+                response.headers,
+                response,
+              );
+              deferred.resolve(result ?? response);
+              const measure = performance.measure(
+                `handle ${uid}`,
+                `${HANDLE_START} ${uid}`,
+              );
+              this.dispatchEvent(
+                new HandledEvent({ request, route, response, measure }),
+              );
+              return;
+            }
+          } catch (error) {
+            let response = await route.error(request, error);
+            const status = isHttpError(error)
+              ? error.status
+              : response?.status ?? Status.InternalServerError;
+            response = await this.#handleStatus(
+              status,
+              request,
+              responseHeaders,
+              response,
+            );
+            if (!response) {
+              response = this.#error(request, error, true);
+            }
             deferred.resolve(response);
             const measure = performance.measure(
               `handle ${uid}`,
@@ -649,24 +909,32 @@ export class Router extends EventTarget {
             );
             return;
           }
-        } catch (error) {
-          let response = await route.error(request, error);
-          if (!response) {
-            response = this.#error(request, error, true);
-          }
-          deferred.resolve(response);
-          const measure = performance.measure(
-            `handle ${uid}`,
-            `${HANDLE_START} ${uid}`,
-          );
-          this.dispatchEvent(
-            new HandledEvent({ request, route, response, measure }),
-          );
-          return;
         }
       }
+    } else if (routerRequestEvent.response) {
+      const { response } = routerRequestEvent;
+      const result = await this.#handleStatus(
+        response.status,
+        request,
+        responseHeaders,
+        response,
+      );
+      deferred.resolve(result ?? response);
+      const measure = performance.measure(
+        `handle ${uid}`,
+        `${HANDLE_START} ${uid}`,
+      );
+      this.dispatchEvent(new HandledEvent({ request, response, measure }));
+      return;
     }
-    const response = this.#notFound(requestEvent.request);
+    let response = await this.#handleStatus(
+      Status.NotFound,
+      request,
+      responseHeaders,
+    );
+    if (!response) {
+      response = this.#notFound(request);
+    }
     deferred.resolve(response);
     const measure = performance.measure(
       `handle ${uid}`,
@@ -1093,6 +1361,73 @@ export class Router extends EventTarget {
     }
   }
 
+  /** Allows setting a handler that will be called when a response has been
+   * handled, but before any default handling has occurred and before it has
+   * been sent back to the client.
+   *
+   * When the router is ready to form a response and send it to the client,
+   * it will match the status of any handlers, and call them in the order they
+   * were registered. The `status` can either be a {@linkcode Status}, or a
+   * {@linkcode StatusRange} or an array of codes and ranges.
+   *
+   * The handler will receive the current {@linkcode Context} along with the
+   * {@linkcode Status} code and any {@linkcode Response} object that was
+   * created previously. If there is no response, none has yet been created.
+   *
+   * A handler can return a response body, like a route handler can or
+   * {@linkcode BodyInit} or a {@linkcode Response} and that will then become
+   * that basis for a new response. If the handler returns `undefined` the
+   * existing response or the default router response will be used.
+   *
+   * Handlers can be removed by calling `.destroy()` on the returned handle.
+   *
+   * If you are performing logging or metrics on the router, it is better to
+   * use the event listener interfaces for the `"handled"` event, as the
+   * intention of `.on()` is to provide a way to do "post-processing" of
+   * response _or_ provide custom responses for things like `404` or `500`
+   * status responses. */
+  on<S extends Status>(status: S | S[], handler: StatusHandler<S>): Destroyable;
+  /** Allows setting a handler that will be called when a response has been
+   * handled, but before any default handling has occurred and before it has
+   * been sent back to the client.
+   *
+   * When the router is ready to form a response and send it to the client,
+   * it will match the status of any handlers, and call them in the order they
+   * were registered. The `status` can either be a {@linkcode Status}, or a
+   * {@linkcode StatusRange} or an array of codes and ranges.
+   *
+   * The handler will receive the current {@linkcode Context} along with the
+   * {@linkcode Status} code and any {@linkcode Response} object that was
+   * created previously. If there is no response, none has yet been created.
+   *
+   * A handler can return a response body, like a route handler can or
+   * {@linkcode BodyInit} or a {@linkcode Response} and that will then become
+   * that basis for a new response. If the handler returns `undefined` the
+   * existing response or the default router response will be used.
+   *
+   * Handlers can be removed by calling `.destroy()` on the returned handle.
+   *
+   * If you are performing logging or metrics on the router, it is better to
+   * use the event listener interfaces for the `"handled"` event, as the
+   * intention of `.on()` is to provide a way to do "post-processing" of
+   * response _or_ provide custom responses for things like `404` or `500`
+   * status responses. */
+  on(
+    status: StatusAndRanges | StatusAndRanges[],
+    handler: StatusHandler<Status>,
+  ): Destroyable {
+    if (!Array.isArray(status)) {
+      status = [status];
+    }
+    const route = new StatusRoute(status, handler, {
+      destroy: () => {
+        this.#statusRoutes.delete(route);
+      },
+    });
+    this.#statusRoutes.add(route);
+    return route;
+  }
+
   addEventListener(
     type: "error",
     listener: RouterErrorEventListenerOrEventListenerObject | null,
@@ -1111,6 +1446,11 @@ export class Router extends EventTarget {
   addEventListener(
     type: "notfound",
     listener: NotFoundEventListenerOrEventListenerObject | null,
+    options?: boolean | AddEventListenerOptions,
+  ): void;
+  addEventListener(
+    type: "request",
+    listener: RouterRequestListenerOrEventListenerObject | null,
     options?: boolean | AddEventListenerOptions,
   ): void;
   addEventListener(
