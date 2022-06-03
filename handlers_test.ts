@@ -26,7 +26,7 @@ Deno.test({
       "public, max-age=604800, immutable",
     ], [
       "content-type",
-      "application/json; charset=utf-8",
+      "application/json; charset=UTF-8",
     ]]);
     assertEquals(await response.text(), `{"hello":"world"}`);
   },

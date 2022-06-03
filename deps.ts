@@ -1,5 +1,6 @@
 // Copyright 2022 the oak authors. All rights reserved.
 
+export { contentType } from "https://deno.land/std@0.142.0/media_types/mod.ts";
 export { Cookies } from "https://deno.land/x/oak_commons@0.3.1/cookies.ts";
 export {
   createHttpError,
@@ -22,4 +23,3 @@ export {
   type Key as SigningKey,
   type KeyRing,
 } from "https://deno.land/x/oak_commons@0.3.1/types.d.ts";
-export { contentType } from "https://deno.land/x/media_types@v3.0.2/mod.ts";

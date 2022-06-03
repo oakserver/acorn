@@ -65,7 +65,7 @@ Deno.test({
     assertEquals(response.status, Status.OK);
     assertEquals(
       response.headers.get("content-type"),
-      "application/json; charset=utf-8",
+      "application/json; charset=UTF-8",
     );
   },
 });
