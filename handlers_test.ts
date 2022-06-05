@@ -3,11 +3,70 @@
 import {
   assert,
   assertEquals,
+  assertRejects,
 } from "https://deno.land/std@0.138.0/testing/asserts.ts";
-import { Cookies } from "./deps.ts";
+import { Cookies, errors, Status } from "./deps.ts";
 import { Context } from "./context.ts";
 
-import { immutable } from "./handlers.ts";
+import { auth, immutable } from "./handlers.ts";
+
+Deno.test({
+  name: "handler - auth() - authorized",
+  async fn() {
+    const handlerWithOptions = auth(
+      () => ({ hello: "world" }),
+      { authorize: () => true },
+    );
+    const context = new Context({
+      request: new Request("https://example.com/"),
+      params: {},
+      cookies: new Cookies(new Headers(), new Headers()),
+    });
+    const response = await handlerWithOptions.handler(context);
+    assertEquals(response, { hello: "world" });
+  },
+});
+
+Deno.test({
+  name: "handler - auth() - unauthorized",
+  async fn() {
+    const handlerWithOptions = auth(
+      () => ({ hello: "world" }),
+      { authorize: () => false },
+    );
+    const context = new Context({
+      request: new Request("https://example.com/"),
+      params: {},
+      cookies: new Cookies(new Headers(), new Headers()),
+    });
+    await assertRejects(
+      async () => {
+        await handlerWithOptions.handler(context);
+      },
+      errors.Unauthorized,
+      "Unauthorized",
+    );
+  },
+});
+
+Deno.test({
+  name: "handler - auth() - return body init",
+  async fn() {
+    const handlerWithOptions = auth(
+      () => ({ hello: "world" }),
+      { authorize: () => "not authorized" },
+    );
+    const context = new Context({
+      request: new Request("https://example.com/"),
+      params: {},
+      cookies: new Cookies(new Headers(), new Headers()),
+    });
+    const response = await handlerWithOptions.handler(context);
+    assert(response instanceof Response);
+    assertEquals(response.status, Status.Unauthorized);
+    assertEquals(await response.text(), "not authorized");
+  },
+});
 
 Deno.test({
   name: "handler - immutable() - no options",

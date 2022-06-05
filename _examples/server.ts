@@ -1,4 +1,4 @@
-import { immutable, Router } from "../mod.ts";
+import { auth, immutable, Router } from "../mod.ts";
 import { createHttpError, Status } from "../deps.ts";
 import { assert } from "../util.ts";
 
@@ -65,6 +65,22 @@ router.get(
   <h1>Example returning HTML</h1>
 </body>
 </html>`),
+);
+
+// A very basic endpoint which will return a JSON value if the right bearer
+// token is presented.
+router.get(
+  "/auth",
+  auth(() => ({ hello: "acorn" }), {
+    authorize(ctx) {
+      if (
+        ctx.request.headers.get("authorization")?.toLowerCase() ===
+          "bearer 123456789"
+      ) {
+        return true;
+      }
+    },
+  }),
 );
 
 // We then have an API which attempts to fetch the book.

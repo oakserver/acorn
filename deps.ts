@@ -4,6 +4,7 @@ export { contentType } from "https://deno.land/std@0.142.0/media_types/mod.ts";
 export { Cookies } from "https://deno.land/x/oak_commons@0.3.1/cookies.ts";
 export {
   createHttpError,
+  errors,
   type HttpError,
   isHttpError,
 } from "https://deno.land/x/oak_commons@0.3.1/http_errors.ts";

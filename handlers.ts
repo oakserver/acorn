@@ -5,7 +5,10 @@
  * @module
  */
 
+import { type Context } from "./context.ts";
+import { createHttpError, Status, STATUS_TEXT } from "./deps.ts";
 import {
+  type RouteHandler,
   type RouteOptions,
   type RouteOptionsWithHandler,
   type RouteParameters,
@@ -18,6 +21,55 @@ import {
   isHtmlLike,
   isJsonLike,
 } from "./util.ts";
+
+export interface AuthOptions<
+  R extends string,
+  BodyType,
+  Params extends RouteParameters<R>,
+> extends RouteOptions<R, BodyType, Params> {
+  authorize(
+    ctx: Context<BodyType, Params>,
+  ):
+    | Promise<boolean | BodyInit | Response>
+    | boolean
+    | BodyInit
+    | Response
+    | undefined;
+}
+
+export function auth<
+  R extends string,
+  BodyType,
+  Params extends RouteParameters<R>,
+  ResponseType,
+>(
+  handler: RouteHandler<ResponseType, BodyType, Params>,
+  options: AuthOptions<R, BodyType, Params>,
+): RouteOptionsWithHandler<R, BodyType, Params, ResponseType> {
+  const { authorize, ...routeOptions } = options;
+  return {
+    async handler(ctx) {
+      const result = await authorize(ctx);
+      if (result === true) {
+        return handler(ctx);
+      }
+      if (result instanceof Response) {
+        return result;
+      }
+      if (isBodyInit(result)) {
+        return new Response(result, {
+          status: Status.Unauthorized,
+          statusText: STATUS_TEXT[Status.Unauthorized],
+        });
+      }
+      throw createHttpError(
+        Status.Unauthorized,
+        STATUS_TEXT[Status.Unauthorized],
+      );
+    },
+    ...routeOptions,
+  };
+}
 
 /** Intended to provide an immutable response handler for a route.
  *
