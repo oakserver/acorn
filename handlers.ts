@@ -30,7 +30,7 @@ export interface AuthOptions<
   authorize(
     ctx: Context<BodyType, Params>,
   ):
-    | Promise<boolean | BodyInit | Response>
+    | Promise<boolean | BodyInit | Response | undefined>
     | boolean
     | BodyInit
     | Response
@@ -42,7 +42,7 @@ export interface AuthOptions<
  * The {@linkcode auth} handler takes the content handler plus options which
  * includes an authorization handler.
  *
- * ### Examples
+ * ### Example
  *
  * ```ts
  * import { Router, immutable } from "https://deno.land/x/acorn/mod.ts";
