@@ -37,6 +37,32 @@ export interface AuthOptions<
     | undefined;
 }
 
+/** A handler which allows easy implementation of authorization for a route.
+ *
+ * The {@linkcode auth} handler takes the content handler plus options which
+ * includes an authorization handler.
+ *
+ * ### Examples
+ *
+ * ```ts
+ * import { Router, immutable } from "https://deno.land/x/acorn/mod.ts";
+ *
+ * const router = new Router();
+ *
+ * router.all("/", auth(() => ({ hello: "acorn"}), {
+ *   authorize(ctx) {
+ *    if (
+ *      ctx.request.headers.get("authorization")?.toLowerCase() ===
+ *        "bearer 123456789"
+ *    ) {
+ *      return true;
+ *    }
+ *  },
+ * }));
+ *
+ * router.listen({ port: 8080 });
+ * ```
+ */
 export function auth<
   R extends string,
   BodyType,
