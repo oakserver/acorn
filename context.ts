@@ -82,7 +82,11 @@ export class Context<
           this.#request,
         );
       } else {
-        this.#body = await this.#request.json();
+        try {
+          this.#body = await this.#request.json();
+        } catch {
+          this.#body = undefined;
+        }
       }
     }
     return this.#body;
