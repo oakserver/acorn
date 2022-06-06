@@ -40,5 +40,6 @@ export {
   RouterErrorEvent,
   type RouteResponse,
   RouterListenEvent,
+  type RouterOptions,
 } from "./router.ts";
 export { type Deserializer, type Serializer } from "./types.d.ts";
