@@ -985,6 +985,13 @@ export class Router extends EventTarget {
     handler: RouteHandler<ResponseType, BodyType, Params>,
     options?: RouteOptions<R, BodyType, Params>,
   ): Destroyable;
+  all<Params extends RouteParameters<string>, BodyType, ResponseType>(
+    route: string,
+    handlerOrOptions:
+      | RouteHandler<ResponseType, BodyType, Params>
+      | RouteOptionsWithHandler<string, BodyType, Params, ResponseType>,
+    options?: RouteOptions<string, BodyType, Params>,
+  ): Destroyable;
   all<
     R extends string,
     Params extends RouteParameters<R>,
@@ -1026,6 +1033,13 @@ export class Router extends EventTarget {
     route: R,
     handler: RouteHandler<ResponseType, BodyType, Params>,
     options?: RouteOptions<R, BodyType, Params>,
+  ): Destroyable;
+  delete<Params extends RouteParameters<string>, BodyType, ResponseType>(
+    route: string,
+    handlerOrOptions:
+      | RouteHandler<ResponseType, BodyType, Params>
+      | RouteOptionsWithHandler<string, BodyType, Params, ResponseType>,
+    options?: RouteOptions<string, BodyType, Params>,
   ): Destroyable;
   delete<
     R extends string,
@@ -1069,6 +1083,13 @@ export class Router extends EventTarget {
     handler: RouteHandler<ResponseType, BodyType, Params>,
     options?: RouteOptions<R, BodyType, Params>,
   ): Destroyable;
+  get<Params extends RouteParameters<string>, BodyType, ResponseType>(
+    route: string,
+    handlerOrOptions:
+      | RouteHandler<ResponseType, BodyType, Params>
+      | RouteOptionsWithHandler<string, BodyType, Params, ResponseType>,
+    options?: RouteOptions<string, BodyType, Params>,
+  ): Destroyable;
   get<
     R extends string,
     Params extends RouteParameters<R>,
@@ -1110,6 +1131,13 @@ export class Router extends EventTarget {
     route: R,
     handler: RouteHandler<ResponseType, BodyType, Params>,
     options?: RouteOptions<R, BodyType, Params>,
+  ): Destroyable;
+  head<Params extends RouteParameters<string>, BodyType, ResponseType>(
+    route: string,
+    handlerOrOptions:
+      | RouteHandler<ResponseType, BodyType, Params>
+      | RouteOptionsWithHandler<string, BodyType, Params, ResponseType>,
+    options?: RouteOptions<string, BodyType, Params>,
   ): Destroyable;
   head<
     R extends string,
@@ -1153,6 +1181,13 @@ export class Router extends EventTarget {
     handler: RouteHandler<ResponseType, BodyType, Params>,
     options?: RouteOptions<R, BodyType, Params>,
   ): Destroyable;
+  options<Params extends RouteParameters<string>, BodyType, ResponseType>(
+    route: string,
+    handlerOrOptions:
+      | RouteHandler<ResponseType, BodyType, Params>
+      | RouteOptionsWithHandler<string, BodyType, Params, ResponseType>,
+    options?: RouteOptions<string, BodyType, Params>,
+  ): Destroyable;
   options<
     R extends string,
     Params extends RouteParameters<R>,
@@ -1194,6 +1229,13 @@ export class Router extends EventTarget {
     route: R,
     handler: RouteHandler<ResponseType, BodyType, Params>,
     options?: RouteOptions<R, BodyType, Params>,
+  ): Destroyable;
+  patch<Params extends RouteParameters<string>, BodyType, ResponseType>(
+    route: string,
+    handlerOrOptions:
+      | RouteHandler<ResponseType, BodyType, Params>
+      | RouteOptionsWithHandler<string, BodyType, Params, ResponseType>,
+    options?: RouteOptions<string, BodyType, Params>,
   ): Destroyable;
   patch<
     R extends string,
@@ -1237,6 +1279,13 @@ export class Router extends EventTarget {
     handler: RouteHandler<ResponseType, BodyType, Params>,
     options?: RouteOptions<R, BodyType, Params>,
   ): Destroyable;
+  post<Params extends RouteParameters<string>, BodyType, ResponseType>(
+    route: string,
+    handlerOrOptions:
+      | RouteHandler<ResponseType, BodyType, Params>
+      | RouteOptionsWithHandler<string, BodyType, Params, ResponseType>,
+    options?: RouteOptions<string, BodyType, Params>,
+  ): Destroyable;
   post<
     R extends string,
     Params extends RouteParameters<R>,
@@ -1278,6 +1327,13 @@ export class Router extends EventTarget {
     route: R,
     handler: RouteHandler<ResponseType, BodyType, Params>,
     options?: RouteOptions<R, BodyType, Params>,
+  ): Destroyable;
+  put<Params extends RouteParameters<string>, BodyType, ResponseType>(
+    route: string,
+    handlerOrOptions:
+      | RouteHandler<ResponseType, BodyType, Params>
+      | RouteOptionsWithHandler<string, BodyType, Params, ResponseType>,
+    options?: RouteOptions<string, BodyType, Params>,
   ): Destroyable;
   put<
     R extends string,
