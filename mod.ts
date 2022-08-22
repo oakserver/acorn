@@ -29,6 +29,8 @@
 export { type Context } from "./context.ts";
 export { type KeyRing, type SigningData, type SigningKey } from "./deps.ts";
 export { auth, immutable } from "./handlers.ts";
+export { NativeHttpServer } from "./http_server_native.ts";
+export { FlashHttpServer, hasFlash } from "./http_server_flash.ts";
 export {
   HandledEvent,
   NotFoundEvent,
