@@ -14,6 +14,7 @@ import {
   type KeyRing,
   Status,
 } from "./deps.ts";
+import { FlashHttpServer, hasFlash } from "./http_server_flash.ts";
 import { NativeHttpServer } from "./http_server_native.ts";
 import {
   type Deserializer,
@@ -54,15 +55,15 @@ export type RouteParameters<Route extends string> = string extends Route
   ? ParamsDictionary
   : Route extends `${string}(${string}` ? ParamsDictionary
   : Route extends `${string}:${infer Rest}` ? 
-    & (
-      GetRouteParameter<Rest> extends never ? ParamsDictionary
-        : GetRouteParameter<Rest> extends `${infer ParamName}?`
-          ? { [P in ParamName]?: string }
-        : { [P in GetRouteParameter<Rest>]: string }
-    )
-    & (Rest extends `${GetRouteParameter<Rest>}${infer Next}`
-      ? RouteParameters<Next>
-      : unknown)
+      & (
+        GetRouteParameter<Rest> extends never ? ParamsDictionary
+          : GetRouteParameter<Rest> extends `${infer ParamName}?`
+            ? { [P in ParamName]?: string }
+          : { [P in GetRouteParameter<Rest>]: string }
+      )
+      & (Rest extends `${GetRouteParameter<Rest>}${infer Next}`
+        ? RouteParameters<Next>
+        : unknown)
   : ParamsDictionary;
 
 /** The interface for route handlers, which are provided via a context
@@ -1317,7 +1318,7 @@ export class Router extends EventTarget {
   async listen(options: ListenOptions = { port: 0 }): Promise<void> {
     const {
       secure = false,
-      server: Server = NativeHttpServer,
+      server: Server = hasFlash() ? FlashHttpServer : NativeHttpServer,
       signal,
       ...listenOptions
     } = options;
@@ -1333,14 +1334,14 @@ export class Router extends EventTarget {
     };
     this.#secure = secure;
     if (signal) {
-      signal.addEventListener("abort", () => {
+      signal.addEventListener("abort", async () => {
         if (!this.#state.handling.size) {
-          server.close();
+          await server.close();
           this.#state.closed = true;
         }
       });
     }
-    const listener = server.listen();
+    const listener = await server.listen();
     const { hostname, port } = listener.addr;
     this.dispatchEvent(
       new RouterListenEvent({

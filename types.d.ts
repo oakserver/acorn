@@ -62,17 +62,44 @@ export interface Listener {
 }
 
 export interface Server extends AsyncIterable<RequestEvent> {
-  close(): void;
-  listen(): Listener;
+  close(): Promise<void> | void;
+  listen(): Promise<Listener> | Listener;
   [Symbol.asyncIterator](): AsyncIterableIterator<RequestEvent>;
+}
+
+export interface ListenOptions {
+  port: number;
+  hostname?: string;
+}
+
+export interface ListenTlsOptions extends ListenOptions {
+  key?: string;
+  cert?: string;
 }
 
 export interface ServerConstructor {
   new (
     errorTarget: EventTarget,
-    options: Deno.ListenOptions | Deno.ListenTlsOptions,
+    options: ListenOptions | ListenTlsOptions,
   ): Server;
   prototype: Server;
+}
+
+export type ServeHandler = (
+  request: Request,
+) => Response | Promise<Response> | void | Promise<void>;
+
+export interface ServeInit {
+  port?: number;
+  hostname?: string;
+  signal?: AbortSignal;
+  onError?: (error: unknown) => Response | Promise<Response>;
+  onListen?: (params: { hostname: string; port: number }) => void;
+}
+
+export interface ServeTlsInit extends ServeInit {
+  cert: string;
+  key: string;
 }
 
 export interface Destroyable {
