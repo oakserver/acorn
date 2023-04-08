@@ -1,7 +1,7 @@
 # acorn
 
 [![ci](https://github.com/oakserver/acorn/workflows/ci/badge.svg)](https://github.com/oakserver/acorn)
-[![deno doc](https://doc.deno.land/badge.svg)](https://doc.deno.land/https/deno.land/x/acorn/mod.ts)
+[![deno doc](https://deno.land/badge/acorn/version)](https://deno.land/x/acorn/)
 
 Rapidly develop and iterate on RESTful APIs using a strongly typed router
 designed for Deno CLI and Deno Deploy.
