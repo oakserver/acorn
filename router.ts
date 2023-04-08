@@ -2,7 +2,6 @@
 
 import { Context } from "./context.ts";
 import {
-  Cookies,
   createHttpError,
   isClientErrorStatus,
   isErrorStatus,
@@ -11,18 +10,18 @@ import {
   isRedirectStatus,
   isServerErrorStatus,
   isSuccessfulStatus,
-  type KeyRing,
+  SecureCookieMap,
   Status,
 } from "./deps.ts";
-import { FlashHttpServer, hasFlash } from "./http_server_flash.ts";
 import { NativeHttpServer } from "./http_server_native.ts";
-import {
-  type Deserializer,
-  type Destroyable,
-  type Listener,
-  type RequestEvent,
-  type Serializer,
-  type ServerConstructor,
+import type {
+  Deserializer,
+  Destroyable,
+  KeyRing,
+  Listener,
+  RequestEvent,
+  Serializer,
+  ServerConstructor,
 } from "./types.d.ts";
 import {
   assert,
@@ -388,17 +387,17 @@ export class RouterListenEvent extends Event {
 }
 
 export interface RouterRequestEventInit extends EventInit {
-  cookies: Cookies;
+  cookies: SecureCookieMap;
   request: Request;
   responseHeaders: Headers;
 }
 
 export class RouterRequestEvent extends Event {
-  #cookies: Cookies;
+  #cookies: SecureCookieMap;
   #request: Request;
   #responseHeaders: Headers;
 
-  get cookies(): Cookies {
+  get cookies(): SecureCookieMap {
     return this.#cookies;
   }
 
@@ -527,8 +526,9 @@ class Route<
     keys?: KeyRing,
   ): Promise<Response | undefined> {
     assert(this.#params, "params should have been set in .matches()");
-    const cookies = new Cookies(request.headers, headers, {
+    const cookies = new SecureCookieMap(request, {
       keys,
+      response: headers,
       secure,
     });
     const context = new Context<BodyType, Params>(
@@ -616,8 +616,9 @@ class StatusRoute<S extends Status> {
     keys?: KeyRing,
   ): Promise<Response | undefined> {
     const headers = response ? new Headers(response.headers) : responseHeaders;
-    const cookies = new Cookies(request.headers, headers, {
+    const cookies = new SecureCookieMap(request, {
       keys,
+      response: headers,
       secure,
     });
     const context = new Context({ cookies, request });
@@ -848,8 +849,9 @@ export class Router extends EventTarget {
     );
     const { request } = requestEvent;
     const responseHeaders = new Headers();
-    const cookies = new Cookies(request.headers, responseHeaders, {
+    const cookies = new SecureCookieMap(request, {
       keys: this.#keys,
+      response: responseHeaders,
       secure: this.#secure,
     });
     const routerRequestEvent = new RouterRequestEvent({
@@ -1374,7 +1376,7 @@ export class Router extends EventTarget {
   async listen(options: ListenOptions = { port: 0 }): Promise<void> {
     const {
       secure = false,
-      server: Server = hasFlash() ? FlashHttpServer : NativeHttpServer,
+      server: Server = NativeHttpServer,
       signal,
       ...listenOptions
     } = options;

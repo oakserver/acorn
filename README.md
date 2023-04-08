@@ -75,4 +75,4 @@ and matches the pathname part of the URL.
 
 ---
 
-Copyright 2018-2022 the oak authors. All rights reserved. MIT License.
+Copyright 2018-2023 the oak authors. All rights reserved. MIT License.

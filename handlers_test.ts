@@ -5,7 +5,7 @@ import {
   assertEquals,
   assertRejects,
 } from "https://deno.land/std@0.138.0/testing/asserts.ts";
-import { Cookies, errors, Status } from "./deps.ts";
+import { errors, SecureCookieMap, Status } from "./deps.ts";
 import { Context } from "./context.ts";
 
 import { auth, immutable } from "./handlers.ts";
@@ -20,7 +20,7 @@ Deno.test({
     const context = new Context({
       request: new Request("https://example.com/"),
       params: {},
-      cookies: new Cookies(new Headers(), new Headers()),
+      cookies: new SecureCookieMap(new Headers()),
     });
     const response = await handlerWithOptions.handler(context);
     assertEquals(response, { hello: "world" });
@@ -37,7 +37,7 @@ Deno.test({
     const context = new Context({
       request: new Request("https://example.com/"),
       params: {},
-      cookies: new Cookies(new Headers(), new Headers()),
+      cookies: new SecureCookieMap(new Headers()),
     });
     await assertRejects(
       async () => {
@@ -59,7 +59,7 @@ Deno.test({
     const context = new Context({
       request: new Request("https://example.com/"),
       params: {},
-      cookies: new Cookies(new Headers(), new Headers()),
+      cookies: new SecureCookieMap(new Headers()),
     });
     const response = await handlerWithOptions.handler(context);
     assert(response instanceof Response);
@@ -76,7 +76,7 @@ Deno.test({
     const context = new Context({
       request: new Request("https://example.com/"),
       params: {},
-      cookies: new Cookies(new Headers(), new Headers()),
+      cookies: new SecureCookieMap(new Headers()),
     });
     const response = await handlerWithOptions.handler(context);
     assert(response instanceof Response);

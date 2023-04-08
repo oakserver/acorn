@@ -27,10 +27,9 @@
  */
 
 export { type Context } from "./context.ts";
-export { type KeyRing, type SigningData, type SigningKey } from "./deps.ts";
+export { type SigningData, type SigningKey } from "./deps.ts";
 export { auth, immutable } from "./handlers.ts";
 export { NativeHttpServer } from "./http_server_native.ts";
-export { FlashHttpServer, hasFlash } from "./http_server_flash.ts";
 export {
   HandledEvent,
   NotFoundEvent,
@@ -44,4 +43,4 @@ export {
   RouterListenEvent,
   type RouterOptions,
 } from "./router.ts";
-export { type Deserializer, type Serializer } from "./types.d.ts";
+export { type Deserializer, type KeyRing, type Serializer } from "./types.d.ts";

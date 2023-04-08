@@ -7,11 +7,11 @@
  * @module
  */
 
-import { type Cookies } from "./deps.ts";
+import { type SecureCookieMap } from "./deps.ts";
 import { type Deserializer } from "./types.d.ts";
 
 interface ContextOptions<BodyType, Params extends Record<string, string>> {
-  cookies: Cookies;
+  cookies: SecureCookieMap;
   deserializer?: Deserializer<BodyType, Params>;
   params?: Params;
   request: Request;
@@ -25,7 +25,7 @@ export class Context<
 > {
   #body?: BodyType;
   #bodySet = false;
-  #cookies: Cookies;
+  #cookies: SecureCookieMap;
   #deserializer?: Deserializer<BodyType, Params>;
   #params: Params;
   #request: Request;
@@ -33,7 +33,7 @@ export class Context<
 
   /** The instance of {@linkcode Cookies} that allows reading and setting of
    * cookies on the request and response. */
-  get cookies(): Cookies {
+  get cookies(): SecureCookieMap {
     return this.#cookies;
   }
 

@@ -1,7 +1,6 @@
 {
   "tasks": {
     "example": "deno run --allow-net --allow-hrtime _examples/server.ts",
-    "example:flash": "deno run --allow-net --allow-hrtime _examples/server.ts",
     "test": "deno test"
   }
 }

@@ -1,3 +1,11 @@
+import type { SigningData } from "./deps.ts";
+
+export interface KeyRing {
+  sign(data: SigningData): Promise<string>;
+  verify(data: SigningData, digest: string): Promise<boolean>;
+  indexOf(data: SigningData, digest: string): Promise<number>;
+}
+
 /** The interface to allow handling of request bodies in a structured way. */
 export interface Deserializer<Type, Params extends Record<string, string>> {
   /** Given the request body as a string along with any parameters parsed when
