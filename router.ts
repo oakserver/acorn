@@ -53,7 +53,7 @@ type GetRouteParameter<S extends string> = RemoveTail<
 export type RouteParameters<Route extends string> = string extends Route
   ? ParamsDictionary
   : Route extends `${string}(${string}` ? ParamsDictionary
-  : Route extends `${string}:${infer Rest}` ? 
+  : Route extends `${string}:${infer Rest}` ?
       & (
         GetRouteParameter<Rest> extends never ? ParamsDictionary
           : GetRouteParameter<Rest> extends `${infer ParamName}?`
