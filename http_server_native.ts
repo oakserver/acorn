@@ -72,8 +72,10 @@ export class NativeHttpServer implements Server {
       : Deno.listen(this.#options)) as Listener;
   }
 
-  [Symbol.asyncIterator](): AsyncIterableIterator<RequestEvent> {
-    const start: ReadableStreamDefaultControllerCallback<RequestEvent> = (
+  [Symbol.asyncIterator](): AsyncIterableIterator<[RequestEvent, Deno.Addr]> {
+    const start: ReadableStreamDefaultControllerCallback<
+      [RequestEvent, Deno.Addr]
+    > = (
       controller,
     ) => {
       // deno-lint-ignore no-this-alias
@@ -89,7 +91,7 @@ export class NativeHttpServer implements Server {
               return;
             }
 
-            controller.enqueue(requestEvent);
+            controller.enqueue([requestEvent, conn.remoteAddr]);
           } catch (error) {
             server.#errorTarget.dispatchEvent(
               new ErrorEvent("error", { error }),
@@ -129,7 +131,7 @@ export class NativeHttpServer implements Server {
       accept();
     };
 
-    const stream = new ReadableStream<RequestEvent>({ start });
+    const stream = new ReadableStream<[RequestEvent, Deno.Addr]>({ start });
     return stream[Symbol.asyncIterator]();
   }
 }

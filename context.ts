@@ -15,6 +15,7 @@ interface ContextOptions<BodyType, Params extends Record<string, string>> {
   deserializer?: Deserializer<BodyType, Params>;
   params?: Params;
   request: Request;
+  addr: Deno.Addr;
 }
 
 /** An object that provides context for the associated request and response.
@@ -29,6 +30,7 @@ export class Context<
   #deserializer?: Deserializer<BodyType, Params>;
   #params: Params;
   #request: Request;
+  #addr: Deno.Addr;
   #requestUrl?: URL;
 
   /** The instance of {@linkcode Cookies} that allows reading and setting of
@@ -48,6 +50,11 @@ export class Context<
     return this.#request;
   }
 
+  /** The address this request. */
+  get addr(): Deno.Addr {
+    return this.#addr;
+  }
+
   /** Any search parameters associated with the request. */
   get searchParams(): Record<string, string> {
     if (!this.#requestUrl) {
@@ -57,12 +64,13 @@ export class Context<
   }
 
   constructor(
-    { request, params, deserializer, cookies }: ContextOptions<
+    { request, addr, params, deserializer, cookies }: ContextOptions<
       BodyType,
       Params
     >,
   ) {
     this.#request = request;
+    this.#addr = addr;
     this.#params = params ?? {} as Params;
     this.#deserializer = deserializer;
     this.#cookies = cookies;

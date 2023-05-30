@@ -521,6 +521,7 @@ class Route<
 
   async handle(
     request: Request,
+    addr: Deno.Addr,
     headers: Headers,
     secure: boolean,
     keys?: KeyRing,
@@ -534,6 +535,7 @@ class Route<
     const context = new Context<BodyType, Params>(
       {
         cookies,
+        addr,
         deserializer: this.#deserializer,
         params: this.#params,
         request,
@@ -840,7 +842,7 @@ export class Router extends EventTarget {
     return response;
   }
 
-  async #handle(requestEvent: RequestEvent): Promise<void> {
+  async #handle(requestEvent: RequestEvent, addr: Deno.Addr): Promise<void> {
     const uid = this.#uid++;
     performance.mark(`${HANDLE_START} ${uid}`);
     const deferred = new Deferred<Response>();
@@ -867,6 +869,7 @@ export class Router extends EventTarget {
           try {
             const response = await route.handle(
               request,
+              addr,
               responseHeaders,
               this.#secure,
               this.#keys,
@@ -1360,7 +1363,7 @@ export class Router extends EventTarget {
     return this.#add(["PUT"], route, handler, options);
   }
 
-  handle(request: Request, secure = false): Promise<Response> {
+  handle(request: Request, addr: Deno.Addr, secure = false): Promise<Response> {
     const deferred = new Deferred<Response>();
     this.#secure = secure;
     this.#handle({
@@ -1369,7 +1372,7 @@ export class Router extends EventTarget {
         deferred.resolve(response);
         return Promise.resolve();
       },
-    });
+    }, addr);
     return deferred.promise;
   }
 
@@ -1410,8 +1413,8 @@ export class Router extends EventTarget {
       }),
     );
     try {
-      for await (const requestEvent of server) {
-        this.#handle(requestEvent);
+      for await (const [requestEvent, addr] of server) {
+        this.#handle(requestEvent, addr);
       }
       await Promise.all(this.#state.handling);
     } catch (error) {

@@ -69,10 +69,10 @@ export interface Listener {
   addr: { hostname: string; port: number };
 }
 
-export interface Server extends AsyncIterable<RequestEvent> {
+export interface Server extends AsyncIterable<[RequestEvent, Deno.Addr]> {
   close(): Promise<void> | void;
   listen(): Promise<Listener> | Listener;
-  [Symbol.asyncIterator](): AsyncIterableIterator<RequestEvent>;
+  [Symbol.asyncIterator](): AsyncIterableIterator<[RequestEvent, Deno.Addr]>;
 }
 
 export interface ListenOptions {
