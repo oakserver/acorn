@@ -15,6 +15,7 @@ import {
 } from "./deps.ts";
 import { NativeHttpServer } from "./http_server_native.ts";
 import type {
+  Addr,
   Deserializer,
   Destroyable,
   KeyRing,
@@ -521,7 +522,7 @@ class Route<
 
   async handle(
     request: Request,
-    addr: Deno.Addr,
+    addr: Addr,
     headers: Headers,
     secure: boolean,
     keys?: KeyRing,
@@ -612,6 +613,7 @@ class StatusRoute<S extends Status> {
   async handle(
     status: Status,
     request: Request,
+    addr: Addr,
     response: Response | undefined,
     responseHeaders: Headers,
     secure: boolean,
@@ -623,7 +625,7 @@ class StatusRoute<S extends Status> {
       response: headers,
       secure,
     });
-    const context = new Context({ cookies, request });
+    const context = new Context({ cookies, request, addr });
     const result = await this.#handler(context, status as S, response);
     if (result instanceof Response) {
       return appendHeaders(result, headers);
@@ -817,6 +819,7 @@ export class Router extends EventTarget {
   async #handleStatus(
     status: Status,
     request: Request,
+    addr: Addr,
     responseHeaders: Headers,
     response?: Response,
   ): Promise<Response | undefined> {
@@ -826,6 +829,7 @@ export class Router extends EventTarget {
           const result = await route.handle(
             status,
             request,
+            addr,
             response,
             responseHeaders,
             this.#secure,
@@ -842,7 +846,7 @@ export class Router extends EventTarget {
     return response;
   }
 
-  async #handle(requestEvent: RequestEvent, addr: Deno.Addr): Promise<void> {
+  async #handle(requestEvent: RequestEvent, addr: Addr): Promise<void> {
     const uid = this.#uid++;
     performance.mark(`${HANDLE_START} ${uid}`);
     const deferred = new Deferred<Response>();
@@ -878,6 +882,7 @@ export class Router extends EventTarget {
               const result = await this.#handleStatus(
                 response.status,
                 request,
+                addr,
                 response.headers,
                 response,
               );
@@ -899,6 +904,7 @@ export class Router extends EventTarget {
             response = await this.#handleStatus(
               status,
               request,
+              addr,
               responseHeaders,
               response,
             );
@@ -922,6 +928,7 @@ export class Router extends EventTarget {
       const result = await this.#handleStatus(
         response.status,
         request,
+        addr,
         responseHeaders,
         response,
       );
@@ -936,6 +943,7 @@ export class Router extends EventTarget {
     let response = await this.#handleStatus(
       Status.NotFound,
       request,
+      addr,
       responseHeaders,
     );
     if (!response) {
@@ -1363,7 +1371,7 @@ export class Router extends EventTarget {
     return this.#add(["PUT"], route, handler, options);
   }
 
-  handle(request: Request, addr: Deno.Addr, secure = false): Promise<Response> {
+  handle(request: Request, addr: Addr, secure = false): Promise<Response> {
     const deferred = new Deferred<Response>();
     this.#secure = secure;
     this.#handle({

@@ -1,6 +1,7 @@
 // Copyright 2022 the oak authors. All rights reserved.
 
 import {
+  type Addr,
   type HttpConn,
   type Listener,
   type RequestEvent,
@@ -72,9 +73,9 @@ export class NativeHttpServer implements Server {
       : Deno.listen(this.#options)) as Listener;
   }
 
-  [Symbol.asyncIterator](): AsyncIterableIterator<[RequestEvent, Deno.Addr]> {
+  [Symbol.asyncIterator](): AsyncIterableIterator<[RequestEvent, Addr]> {
     const start: ReadableStreamDefaultControllerCallback<
-      [RequestEvent, Deno.Addr]
+      [RequestEvent, Addr]
     > = (
       controller,
     ) => {
@@ -91,7 +92,7 @@ export class NativeHttpServer implements Server {
               return;
             }
 
-            controller.enqueue([requestEvent, conn.remoteAddr]);
+            controller.enqueue([requestEvent, conn.remoteAddr as Addr]);
           } catch (error) {
             server.#errorTarget.dispatchEvent(
               new ErrorEvent("error", { error }),
@@ -131,7 +132,7 @@ export class NativeHttpServer implements Server {
       accept();
     };
 
-    const stream = new ReadableStream<[RequestEvent, Deno.Addr]>({ start });
+    const stream = new ReadableStream<[RequestEvent, Addr]>({ start });
     return stream[Symbol.asyncIterator]();
   }
 }

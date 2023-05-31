@@ -8,14 +8,14 @@
  */
 
 import { type SecureCookieMap } from "./deps.ts";
-import { type Deserializer } from "./types.d.ts";
+import { type Addr, type Deserializer } from "./types.d.ts";
 
 interface ContextOptions<BodyType, Params extends Record<string, string>> {
   cookies: SecureCookieMap;
   deserializer?: Deserializer<BodyType, Params>;
   params?: Params;
   request: Request;
-  addr: Deno.Addr;
+  addr: Addr;
 }
 
 /** An object that provides context for the associated request and response.
@@ -30,7 +30,7 @@ export class Context<
   #deserializer?: Deserializer<BodyType, Params>;
   #params: Params;
   #request: Request;
-  #addr: Deno.Addr;
+  #addr: Addr;
   #requestUrl?: URL;
 
   /** The instance of {@linkcode Cookies} that allows reading and setting of
@@ -51,7 +51,7 @@ export class Context<
   }
 
   /** The address this request. */
-  get addr(): Deno.Addr {
+  get addr(): Addr {
     return this.#addr;
   }
 
