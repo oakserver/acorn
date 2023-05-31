@@ -28,7 +28,10 @@ Deno.test({
 
     const response = await router.handle(
       new Request("http://example.com/"),
-      true,
+      {
+        addr: { transport: "tcp", hostname: "127.0.0.1", port: 8000 },
+        secure: true,
+      },
     );
     assert(called, "route should have been called");
     assert(onCalled, "status route should have been called");
@@ -58,7 +61,10 @@ Deno.test({
 
     const response = await router.handle(
       new Request("http://example.com/"),
-      true,
+      {
+        addr: { transport: "tcp", hostname: "127.0.0.1", port: 8000 },
+        secure: true,
+      },
     );
     assertEquals(routeCalled, 1, "router should have been called");
     assertEquals(listenerCalled, 1, "listener should have been called");

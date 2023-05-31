@@ -65,14 +65,20 @@ export interface RequestEvent {
   respondWith(r: Response | Promise<Response>): Promise<void>;
 }
 
-export interface Listener {
-  addr: { hostname: string; port: number };
+export interface Addr {
+  transport: "tcp" | "udp";
+  hostname: string;
+  port: number;
 }
 
-export interface Server extends AsyncIterable<RequestEvent> {
+export interface Listener {
+  addr: Addr;
+}
+
+export interface Server extends AsyncIterable<[RequestEvent, Addr]> {
   close(): Promise<void> | void;
   listen(): Promise<Listener> | Listener;
-  [Symbol.asyncIterator](): AsyncIterableIterator<RequestEvent>;
+  [Symbol.asyncIterator](): AsyncIterableIterator<[RequestEvent, Addr]>;
 }
 
 export interface ListenOptions {

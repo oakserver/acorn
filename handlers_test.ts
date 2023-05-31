@@ -21,6 +21,7 @@ Deno.test({
       request: new Request("https://example.com/"),
       params: {},
       cookies: new SecureCookieMap(new Headers()),
+      addr: { transport: "tcp", hostname: "127.0.0.1", port: 8000 },
     });
     const response = await handlerWithOptions.handler(context);
     assertEquals(response, { hello: "world" });
@@ -38,6 +39,7 @@ Deno.test({
       request: new Request("https://example.com/"),
       params: {},
       cookies: new SecureCookieMap(new Headers()),
+      addr: { transport: "tcp", hostname: "127.0.0.1", port: 8000 },
     });
     await assertRejects(
       async () => {
@@ -60,6 +62,7 @@ Deno.test({
       request: new Request("https://example.com/"),
       params: {},
       cookies: new SecureCookieMap(new Headers()),
+      addr: { transport: "tcp", hostname: "127.0.0.1", port: 8000 },
     });
     const response = await handlerWithOptions.handler(context);
     assert(response instanceof Response);
@@ -77,6 +80,7 @@ Deno.test({
       request: new Request("https://example.com/"),
       params: {},
       cookies: new SecureCookieMap(new Headers()),
+      addr: { transport: "tcp", hostname: "127.0.0.1", port: 8000 },
     });
     const response = await handlerWithOptions.handler(context);
     assert(response instanceof Response);
