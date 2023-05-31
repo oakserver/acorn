@@ -698,6 +698,12 @@ class StatusRoute<S extends Status> {
   }
 }
 
+export interface RouterHandleInit {
+  addr: Addr;
+  /** @default {false} */
+  secure?: boolean;
+}
+
 /** A router which is specifically geared for handling RESTful type of requests
  * and providing a straight forward API to respond to them.
  *
@@ -1371,16 +1377,16 @@ export class Router extends EventTarget {
     return this.#add(["PUT"], route, handler, options);
   }
 
-  handle(request: Request, addr: Addr, secure = false): Promise<Response> {
+  handle(request: Request, init: RouterHandleInit): Promise<Response> {
     const deferred = new Deferred<Response>();
-    this.#secure = secure;
+    this.#secure = init.secure ?? false;
     this.#handle({
       request,
       respondWith(response: Response | Promise<Response>): Promise<void> {
         deferred.resolve(response);
         return Promise.resolve();
       },
-    }, addr);
+    }, init.addr);
     return deferred.promise;
   }
 
