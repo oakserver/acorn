@@ -24,14 +24,15 @@ export class Context<
   BodyType = unknown,
   Params extends Record<string, string> = Record<string, string>,
 > {
+  #addr: Addr;
   #body?: BodyType;
   #bodySet = false;
   #cookies: SecureCookieMap;
   #deserializer?: Deserializer<BodyType, Params>;
   #params: Params;
   #request: Request;
-  #addr: Addr;
-  #requestUrl?: URL;
+  #searchParams?: Record<string, string>;
+  #url?: URL;
 
   /** The instance of {@linkcode Cookies} that allows reading and setting of
    * cookies on the request and response. */
@@ -57,10 +58,12 @@ export class Context<
 
   /** Any search parameters associated with the request. */
   get searchParams(): Record<string, string> {
-    if (!this.#requestUrl) {
-      this.#requestUrl = new URL(this.#request.url);
+    if (!this.#searchParams) {
+      this.#searchParams = Object.fromEntries(
+        this.url().searchParams.entries(),
+      );
     }
-    return Object.fromEntries(this.#requestUrl.searchParams.entries());
+    return this.#searchParams;
   }
 
   constructor(
@@ -106,6 +109,9 @@ export class Context<
 
   /** Returns the request URL as a parsed {@linkcode URL} object. */
   url(): URL {
-    return new URL(this.#request.url);
+    if (!this.#url) {
+      this.#url = new URL(this.#request.url);
+    }
+    return this.#url;
   }
 }
