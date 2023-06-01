@@ -76,6 +76,10 @@ export class Context<
     this.#cookies = cookies;
   }
 
+  /** A convenience method to deal with decoding a JSON string body. It can be
+   * used with an optional {@linkcode Deserializer} which can do advanced
+   * decoding of the body, or it will attempted to be decoded from the JSON
+   * string. */
   async body(): Promise<BodyType | undefined> {
     if (this.#bodySet) {
       return this.#body;

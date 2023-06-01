@@ -34,14 +34,25 @@ request:
 
 ```ts
 interface Context<Params extends Record<string, string>, BodyType> {
-  readonly request: Request;
+  readonly addr: Addr;
+  readonly cookies: SecureCookieMap;
   readonly params: Params;
+  readonly request: Request;
+  readonly searchParams: Record<string, string>;
   body(): Promise<BodyType | undefined>;
+  url(): URL;
 }
 ```
 
 The `.params` property provides any parameters (named captures) parsed out when
 matching the route string.
+
+The `.searchParams` property provides any search parameters associated with the
+request.
+
+The `.addr` property provides the remote address associated with the request.
+
+The `.url()` method returns an instance of URL associated with the request.
 
 The `.body()` method is a convenience method to deal with decoding a JSON string
 body. It can be used with an optional
