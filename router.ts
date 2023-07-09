@@ -399,12 +399,21 @@ export class RouterListenEvent extends Event {
   }
 }
 
+/** The init for a {@linkcode RouterRequestEvent}. */
 export interface RouterRequestEventInit extends EventInit {
+  /** Any secure cookies associated with the request event. */
   cookies: SecureCookieMap;
+  /** The {@linkcode Request} associated with the event. */
   request: Request;
+  /** A link to the response headers object that should be used when
+   * initing a response. */
   responseHeaders: Headers;
 }
 
+/** An event that is raised when the router is processing an event. If the
+ * event's `response` property is set after the event completes its dispatch,
+ * then the value will be used to send the response, otherwise the router will
+ * attempt to match a route. */
 export class RouterRequestEvent extends Event {
   #cookies: SecureCookieMap;
   #request: Request;

@@ -42,5 +42,7 @@ export {
   type RouteResponse,
   RouterListenEvent,
   type RouterOptions,
+  RouterRequestEvent,
+  type RouterRequestEventInit,
 } from "./router.ts";
 export { type Deserializer, type KeyRing, type Serializer } from "./types.d.ts";
