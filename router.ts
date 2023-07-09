@@ -237,13 +237,22 @@ interface NotFoundEventInit extends EventInit {
   request: Request;
 }
 
+/** A DOM like event that is emitted from the router when any request did not
+ * match any routes.
+ *
+ * Setting the `.response` property will cause the default response to be
+ * overridden. */
 export class NotFoundEvent extends Event {
   #request: Request;
 
+  /** The original {@linkcode Request} associated with the event. */
   get request(): Request {
     return this.#request;
   }
 
+  /** If the event listener whishes to issue a specific response to the event,
+   * then it should set the value here to a {@linkcode Response} and the router
+   * will use it to respond. */
   response?: Response;
 
   constructor(eventInitDict: NotFoundEventInit) {
@@ -259,6 +268,9 @@ interface HandledEventInit extends EventInit {
   route?: Route;
 }
 
+/** A DOM like event emitted by the router when a request has been handled.
+ *
+ * This can be used to provide logging and reporting for the router. */
 export class HandledEvent extends Event {
   #measure: PerformanceMeasure;
   #request: Request;
@@ -449,6 +461,7 @@ interface InternalState {
   server: ServerConstructor;
 }
 
+/** Options which can be used when creating a new router. */
 export interface RouterOptions {
   /** A key ring which will be used for signing and validating cookies. */
   keys?: KeyRing;

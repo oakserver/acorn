@@ -19,6 +19,8 @@ function isListenTlsOptions(value: unknown): value is Deno.ListenTlsOptions {
     "keyFile" in value && "port" in value;
 }
 
+/** An abstraction for Deno's built in HTTP Server that is used to manage
+ * HTTP requests in a uniform way. */
 export class NativeHttpServer implements Server {
   #closed = false;
   #errorTarget: EventTarget;

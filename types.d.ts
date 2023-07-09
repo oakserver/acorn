@@ -1,5 +1,11 @@
 import type { SigningData } from "./deps.ts";
 
+/** An abstract interface for cryptographic key rings that can be used to sign
+ * cookies.
+ *
+ * The Deno std library
+ * [KeyStack](https://deno.land/std/crypto/keystack.ts?s=KeyStack) is an example
+ * of an implementation. */
 export interface KeyRing {
   sign(data: SigningData): Promise<string>;
   verify(data: SigningData, digest: string): Promise<boolean>;
