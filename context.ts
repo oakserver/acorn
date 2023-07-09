@@ -7,7 +7,7 @@
  * @module
  */
 
-import { type SecureCookieMap } from "./deps.ts";
+import { type SecureCookieMap, UserAgent } from "./deps.ts";
 import { type Addr, type Deserializer } from "./types.d.ts";
 
 interface ContextOptions<BodyType, Params extends Record<string, string>> {
@@ -33,6 +33,7 @@ export class Context<
   #request: Request;
   #searchParams?: Record<string, string>;
   #url?: URL;
+  #userAgent: UserAgent;
 
   /** The instance of {@linkcode Cookies} that allows reading and setting of
    * cookies on the request and response. */
@@ -66,6 +67,16 @@ export class Context<
     return this.#searchParams;
   }
 
+  /** Information about the parsed user agent string associated with the
+   * `Request` if available.
+   *
+   * See:
+   * [std/http/user_agent#UserAgent](https://deno.land/std/http/user_agent.ts?s=UserAgent)
+   * for more information. */
+  get userAgent(): UserAgent {
+    return this.#userAgent;
+  }
+
   constructor(
     { request, addr, params, deserializer, cookies }: ContextOptions<
       BodyType,
@@ -77,6 +88,7 @@ export class Context<
     this.#params = params ?? {} as Params;
     this.#deserializer = deserializer;
     this.#cookies = cookies;
+    this.#userAgent = new UserAgent(request.headers.get("user-agent"));
   }
 
   /** A convenience method to deal with decoding a JSON string body. It can be
