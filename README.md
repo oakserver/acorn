@@ -22,6 +22,21 @@ router.get("/books/:id", (ctx) => BOOKS[ctx.params.id]);
 router.listen({ port: 5000 });
 ```
 
+## Philosophy
+
+After having spent years working on [oak](https://deno.land/x/oak) and extensive
+experience with building Deno, that really when people were looking at
+middleware type of solution, really what they were looking fore was a straight
+forward router that made it easy to handle JSON payloads.
+
+Also, oak was created in the early days of Deno, before it even had a native
+HTTP server, and that server supported the web standard `Request` and
+`Response`.
+
+Acorn was the culmination of that need. It makes it easy to have route handlers
+that are straight forward and focuses on staying closer to the native
+implementations of Deno constructs that have evolved over time.
+
 ## Routes
 
 An instance of a router has several methods for registering a handler for a
