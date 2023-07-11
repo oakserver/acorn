@@ -1403,6 +1403,10 @@ export class Router extends EventTarget {
     return this.#add(["PUT"], route, handler, options);
   }
 
+  /** Handle an individual request by matching against registered routers.
+   *
+   * This is intended to be used when the router isn't managing opening the
+   * server and listening for requests. */
   handle(request: Request, init: RouterHandleInit): Promise<Response> {
     const d = deferred<Response>();
     this.#secure = init.secure ?? false;
@@ -1416,7 +1420,7 @@ export class Router extends EventTarget {
     return d;
   }
 
-  /** Listen on the network for requests and handle them by matching against
+  /** Open a server to listen for requests and handle them by matching against
    * registered routes.
    *
    * The promise returned resolves when the server closes. To close the server
@@ -1520,6 +1524,10 @@ export class Router extends EventTarget {
    * intention of `.on()` is to provide a way to do "post-processing" of
    * response _or_ provide custom responses for things like `404` or `500`
    * status responses. */
+  on(
+    status: StatusRange | StatusRange[],
+    handler: StatusHandler<Status>,
+  ): Destroyable;
   on(
     status: StatusAndRanges | StatusAndRanges[],
     handler: StatusHandler<Status>,
