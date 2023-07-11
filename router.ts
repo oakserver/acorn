@@ -466,7 +466,6 @@ type ListenOptions = ListenOptionsBase | ListenOptionsSecure;
 interface InternalState {
   closed: boolean;
   closing: boolean;
-  handling: Set<Promise<Response>>;
   server: ServerConstructor;
 }
 
@@ -789,6 +788,7 @@ export interface RouterHandleInit {
  * ```
  */
 export class Router extends EventTarget {
+  #handling: Set<Promise<Response>> = new Set();
   #keys?: KeyRing;
   #preferJson: boolean;
   #routes = new Set<Route>();
@@ -878,7 +878,7 @@ export class Router extends EventTarget {
     const uid = this.#uid++;
     performance.mark(`${HANDLE_START} ${uid}`);
     const deferred = new Deferred<Response>();
-    this.#state?.handling.add(deferred.promise);
+    this.#handling.add(deferred.promise);
     requestEvent.respondWith(deferred.promise).catch((error) =>
       this.#error(requestEvent.request, error, false)
     );
@@ -941,7 +941,7 @@ export class Router extends EventTarget {
               response = this.#error(request, error, true);
             }
             deferred.resolve(response);
-            this.#state?.handling.delete(deferred.promise);
+            this.#handling.delete(deferred.promise);
             const measure = performance.measure(
               `handle ${uid}`,
               `${HANDLE_START} ${uid}`,
@@ -963,7 +963,7 @@ export class Router extends EventTarget {
         response,
       );
       deferred.resolve(result ?? response);
-      this.#state?.handling.delete(deferred.promise);
+      this.#handling.delete(deferred.promise);
       const measure = performance.measure(
         `handle ${uid}`,
         `${HANDLE_START} ${uid}`,
@@ -981,7 +981,7 @@ export class Router extends EventTarget {
       response = this.#notFound(request);
     }
     deferred.resolve(response);
-    this.#state?.handling.delete(deferred.promise);
+    this.#handling.delete(deferred.promise);
     const measure = performance.measure(
       `handle ${uid}`,
       `${HANDLE_START} ${uid}`,
@@ -1430,7 +1430,6 @@ export class Router extends EventTarget {
     this.#state = {
       closed: false,
       closing: false,
-      handling: new Set(),
       server: Server,
     };
     this.#secure = secure;
@@ -1438,7 +1437,7 @@ export class Router extends EventTarget {
       signal.addEventListener("abort", async () => {
         assert(this.#state, "router state should exist");
         this.#state.closing = true;
-        await Promise.all(this.#state.handling);
+        await Promise.all(this.#handling);
         await server.close();
         this.#state.closed = true;
       });
@@ -1457,7 +1456,7 @@ export class Router extends EventTarget {
       for await (const [requestEvent, addr] of server) {
         this.#handle(requestEvent, addr);
       }
-      await Promise.all(this.#state.handling);
+      await Promise.all(this.#handling);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Internal error";
       this.dispatchEvent(new RouterErrorEvent({ message, error }));
