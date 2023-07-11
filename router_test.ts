@@ -1,5 +1,5 @@
 import { Status } from "./deps.ts";
-import { assert, assertEquals } from "./deps_test.ts";
+import { assert, assertEquals, deferred } from "./deps_test.ts";
 import { Router, RouterRequestEvent } from "./router.ts";
 
 Deno.test({
@@ -73,5 +73,36 @@ Deno.test({
       response.headers.get("content-type"),
       "application/json; charset=UTF-8",
     );
+  },
+});
+
+Deno.test({
+  name: "Router - abort signal - closes properly",
+  async fn() {
+    const router = new Router();
+    const abortController = new AbortController();
+    const { signal } = abortController;
+    const rp: Promise<string>[] = [];
+    router.get("/", () => {
+      const d = deferred<Response>();
+      setTimeout(
+        () =>
+          d.resolve(
+            new Response(JSON.stringify({ hello: "world" }), {
+              headers: { "content-type": "application/json" },
+            }),
+          ),
+        200,
+      );
+      return d;
+    });
+    router.addEventListener("listen", ({ port, hostname }) => {
+      rp.push(fetch(`http://${hostname}:${port}/`).then((r) => r.text()));
+      rp.push(fetch(`http://${hostname}:${port}/`).then((r) => r.text()));
+      setTimeout(() => abortController.abort(), 100);
+    });
+    await router.listen({ signal });
+    // deno-lint-ignore no-explicit-any
+    return Promise.all(rp) as Promise<any>;
   },
 });

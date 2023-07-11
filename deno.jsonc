@@ -1,6 +1,6 @@
 {
   "tasks": {
     "example": "deno run --allow-net --allow-hrtime _examples/server.ts",
-    "test": "deno test"
+    "test": "deno test --allow-net"
   }
 }

@@ -466,7 +466,7 @@ type ListenOptions = ListenOptionsBase | ListenOptionsSecure;
 interface InternalState {
   closed: boolean;
   closing: boolean;
-  handling: Set<Promise<void>>;
+  handling: Set<Promise<Response>>;
   server: ServerConstructor;
 }
 
@@ -793,7 +793,7 @@ export class Router extends EventTarget {
   #preferJson: boolean;
   #routes = new Set<Route>();
   #secure = false;
-  #state!: InternalState;
+  #state?: InternalState;
   #statusRoutes = new Set<StatusRoute<Status>>();
   #uid = 0;
 
@@ -878,6 +878,7 @@ export class Router extends EventTarget {
     const uid = this.#uid++;
     performance.mark(`${HANDLE_START} ${uid}`);
     const deferred = new Deferred<Response>();
+    this.#state?.handling.add(deferred.promise);
     requestEvent.respondWith(deferred.promise).catch((error) =>
       this.#error(requestEvent.request, error, false)
     );
@@ -940,6 +941,7 @@ export class Router extends EventTarget {
               response = this.#error(request, error, true);
             }
             deferred.resolve(response);
+            this.#state?.handling.delete(deferred.promise);
             const measure = performance.measure(
               `handle ${uid}`,
               `${HANDLE_START} ${uid}`,
@@ -961,6 +963,7 @@ export class Router extends EventTarget {
         response,
       );
       deferred.resolve(result ?? response);
+      this.#state?.handling.delete(deferred.promise);
       const measure = performance.measure(
         `handle ${uid}`,
         `${HANDLE_START} ${uid}`,
@@ -978,6 +981,7 @@ export class Router extends EventTarget {
       response = this.#notFound(request);
     }
     deferred.resolve(response);
+    this.#state?.handling.delete(deferred.promise);
     const measure = performance.measure(
       `handle ${uid}`,
       `${HANDLE_START} ${uid}`,
@@ -1426,16 +1430,17 @@ export class Router extends EventTarget {
     this.#state = {
       closed: false,
       closing: false,
-      handling: new Set<Promise<void>>(),
+      handling: new Set(),
       server: Server,
     };
     this.#secure = secure;
     if (signal) {
       signal.addEventListener("abort", async () => {
-        if (!this.#state.handling.size) {
-          await server.close();
-          this.#state.closed = true;
-        }
+        assert(this.#state, "router state should exist");
+        this.#state.closing = true;
+        await Promise.all(this.#state.handling);
+        await server.close();
+        this.#state.closed = true;
       });
     }
     const listener = await server.listen();
