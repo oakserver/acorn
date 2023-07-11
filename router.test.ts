@@ -1,3 +1,5 @@
+// Copyright 2022-2023 the oak authors. All rights reserved.
+
 import { deferred, Status } from "./deps.ts";
 import { assertEquals } from "./deps_test.ts";
 import { Router, RouterRequestEvent } from "./router.ts";

@@ -1,3 +1,5 @@
+// Copyright 2022-2023 the oak authors. All rights reserved.
+
 import { auth, immutable, Router } from "../mod.ts";
 import { createHttpError, Status } from "../deps.ts";
 import { assert } from "../util.ts";

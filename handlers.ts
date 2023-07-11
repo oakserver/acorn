@@ -1,4 +1,4 @@
-// Copyright 2022 the oak authors. All rights reserved.
+// Copyright 2022-2023 the oak authors. All rights reserved.
 
 /** Contains handler factory functions which simplify some common use cases.
  *

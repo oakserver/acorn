@@ -1,3 +1,5 @@
+// Copyright 2022-2023 the oak authors. All rights reserved.
+
 import { accepts, contentType, type HttpError, STATUS_TEXT } from "./deps.ts";
 
 export const CONTENT_TYPE_HTML = contentType("html")!;
@@ -10,33 +12,6 @@ export function assert(
 ): asserts cond {
   if (!cond) {
     throw new Error(message);
-  }
-}
-
-/** A class which provides an "unwrapped" promise. */
-export class Deferred<T> {
-  #promise: Promise<T>;
-  // deno-lint-ignore no-explicit-any
-  #reject!: (reason?: any) => void;
-  #resolve!: (value: T | PromiseLike<T>) => void;
-
-  constructor() {
-    this.#promise = new Promise((res, rej) => {
-      this.#resolve = res;
-      this.#reject = rej;
-    });
-  }
-
-  get promise() {
-    return this.#promise;
-  }
-
-  get reject() {
-    return this.#reject;
-  }
-
-  get resolve() {
-    return this.#resolve;
   }
 }
 

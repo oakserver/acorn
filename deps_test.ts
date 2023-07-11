@@ -1,3 +1,5 @@
+// Copyright 2022-2023 the oak authors. All rights reserved.
+
 export {
   assert,
   assertEquals,

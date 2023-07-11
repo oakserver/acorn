@@ -1,3 +1,5 @@
+// Copyright 2022-2023 the oak authors. All rights reserved.
+
 import type { SigningData } from "./deps.ts";
 
 /** An abstract interface for cryptographic key rings that can be used to sign
