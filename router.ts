@@ -3,6 +3,7 @@
 import { Context } from "./context.ts";
 import {
   createHttpError,
+  deferred,
   isClientErrorStatus,
   isErrorStatus,
   isHttpError,
@@ -29,7 +30,6 @@ import {
   CONTENT_TYPE_HTML,
   CONTENT_TYPE_JSON,
   CONTENT_TYPE_TEXT,
-  Deferred,
   isBodyInit,
   isHtmlLike,
   isJsonLike,
@@ -877,9 +877,9 @@ export class Router extends EventTarget {
   async #handle(requestEvent: RequestEvent, addr: Addr): Promise<void> {
     const uid = this.#uid++;
     performance.mark(`${HANDLE_START} ${uid}`);
-    const deferred = new Deferred<Response>();
-    this.#handling.add(deferred.promise);
-    requestEvent.respondWith(deferred.promise).catch((error) =>
+    const d = deferred<Response>();
+    this.#handling.add(d);
+    requestEvent.respondWith(d).catch((error) =>
       this.#error(requestEvent.request, error, false)
     );
     const { request } = requestEvent;
@@ -915,7 +915,7 @@ export class Router extends EventTarget {
                 response.headers,
                 response,
               );
-              deferred.resolve(result ?? response);
+              d.resolve(result ?? response);
               const measure = performance.measure(
                 `handle ${uid}`,
                 `${HANDLE_START} ${uid}`,
@@ -940,8 +940,8 @@ export class Router extends EventTarget {
             if (!response) {
               response = this.#error(request, error, true);
             }
-            deferred.resolve(response);
-            this.#handling.delete(deferred.promise);
+            d.resolve(response);
+            this.#handling.delete(d);
             const measure = performance.measure(
               `handle ${uid}`,
               `${HANDLE_START} ${uid}`,
@@ -962,8 +962,8 @@ export class Router extends EventTarget {
         responseHeaders,
         response,
       );
-      deferred.resolve(result ?? response);
-      this.#handling.delete(deferred.promise);
+      d.resolve(result ?? response);
+      this.#handling.delete(d);
       const measure = performance.measure(
         `handle ${uid}`,
         `${HANDLE_START} ${uid}`,
@@ -980,8 +980,8 @@ export class Router extends EventTarget {
     if (!response) {
       response = this.#notFound(request);
     }
-    deferred.resolve(response);
-    this.#handling.delete(deferred.promise);
+    d.resolve(response);
+    this.#handling.delete(d);
     const measure = performance.measure(
       `handle ${uid}`,
       `${HANDLE_START} ${uid}`,
@@ -1404,18 +1404,24 @@ export class Router extends EventTarget {
   }
 
   handle(request: Request, init: RouterHandleInit): Promise<Response> {
-    const deferred = new Deferred<Response>();
+    const d = deferred<Response>();
     this.#secure = init.secure ?? false;
     this.#handle({
       request,
       respondWith(response: Response | Promise<Response>): Promise<void> {
-        deferred.resolve(response);
+        d.resolve(response);
         return Promise.resolve();
       },
     }, init.addr);
-    return deferred.promise;
+    return d;
   }
 
+  /** Listen on the network for requests and handle them by matching against
+   * registered routes.
+   *
+   * The promise returned resolves when the server closes. To close the server
+   * provide an {@linkcode AbortSignal} in the options and when signaled in
+   * flight requests will be processed and the HTTP server closed. */
   async listen(options: ListenOptions = { port: 0 }): Promise<void> {
     const {
       secure = false,

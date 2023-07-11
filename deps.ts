@@ -1,5 +1,6 @@
 // Copyright 2022 the oak authors. All rights reserved.
 
+export { deferred } from "https://deno.land/std@0.193.0/async/deferred.ts";
 export {
   type Data as SigningData,
   type Key as SigningKey,

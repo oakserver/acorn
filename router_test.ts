@@ -1,6 +1,7 @@
-import { Status } from "./deps.ts";
-import { assert, assertEquals, deferred } from "./deps_test.ts";
+import { deferred, Status } from "./deps.ts";
+import { assertEquals } from "./deps_test.ts";
 import { Router, RouterRequestEvent } from "./router.ts";
+import { assert } from "./util.ts";
 
 Deno.test({
   name: "Router - basic usage",
