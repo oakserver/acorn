@@ -133,3 +133,28 @@ export interface HttpConn extends AsyncIterable<RequestEvent> {
   nextRequest(): Promise<RequestEvent | null>;
   close(): void;
 }
+
+export interface UpgradeWebSocketOptions {
+  /** Sets the `.protocol` property on the client side web socket to the
+   * value provided here, which should be one of the strings specified in the
+   * `protocols` parameter when requesting the web socket. This is intended
+   * for clients and servers to specify sub-protocols to use to communicate to
+   * each other. */
+  protocol?: string;
+  /** If the client does not respond to this frame with a
+   * `pong` within the timeout specified, the connection is deemed
+   * unhealthy and is closed. The `close` and `error` event will be emitted.
+   *
+   * The default is 120 seconds. Set to `0` to disable timeouts. */
+  idleTimeout?: number;
+}
+
+export interface WebSocketUpgrade {
+  /** The response object that represents the HTTP response to the client,
+   * which should be used to the {@linkcode RequestEvent} `.respondWith()` for
+   * the upgrade to be successful. */
+  response: Response;
+  /** The {@linkcode WebSocket} interface to communicate to the client via a
+   * web socket. */
+  socket: WebSocket;
+}

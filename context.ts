@@ -7,8 +7,18 @@
  * @module
  */
 
-import { type SecureCookieMap, UserAgent } from "./deps.ts";
-import { type Addr, type Deserializer } from "./types.ts";
+import {
+  createHttpError,
+  type SecureCookieMap,
+  Status,
+  UserAgent,
+} from "./deps.ts";
+import {
+  type Addr,
+  type Deserializer,
+  type UpgradeWebSocketOptions,
+  type WebSocketUpgrade,
+} from "./types.ts";
 
 interface ContextOptions<BodyType, Params extends Record<string, string>> {
   cookies: SecureCookieMap;
@@ -117,6 +127,38 @@ export class Context<
       }
     }
     return this.#body;
+  }
+
+  /** Attempt to upgrade the request to a web socket, returning the socket and
+   * the response to be returned.
+   *
+   * ## Example
+   *
+   * ```ts
+   * import { Router } from "https://deno.land/x/acorn/mod.ts";
+   *
+   * const router = new Router();
+   *
+   * router.get("/ws", (ctx) => {
+   *   const { socket, response } = ctx.upgrade();
+   *   // Perform actions with the socket.
+   *   return response;
+   * });
+   *
+   * router.listen({ port: 8000 });
+   * ```
+   *
+   * @param options
+   * @returns
+   */
+  upgrade(options?: UpgradeWebSocketOptions): WebSocketUpgrade {
+    if (!Deno || !("upgradeWebSocket" in Deno)) {
+      throw createHttpError(
+        Status.ServiceUnavailable,
+        "Web sockets not supported.",
+      );
+    }
+    return Deno.upgradeWebSocket(this.#request, options);
   }
 
   /** Returns the request URL as a parsed {@linkcode URL} object. */
