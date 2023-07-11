@@ -1,5 +1,10 @@
 // Copyright 2022-2023 the oak authors. All rights reserved.
 
+import {
+  ServerSentEvent,
+  ServerSentEventStreamTarget,
+} from "https://deno.land/std@0.193.0/http/server_sent_event.ts";
+
 import { auth, immutable, Router } from "../mod.ts";
 import { createHttpError, Status } from "../deps.ts";
 import { assert } from "../util.ts";
@@ -99,6 +104,26 @@ router.get("/books/:id", async (ctx) => {
   // whenever we return a value from the handler, the static method `.stringify`
   // on `Book` will be called.
   serializer: Book,
+});
+
+// An example of sending server sent events.
+router.get("/events", (_ctx) => {
+  const target = new ServerSentEventStreamTarget();
+
+  let counter = 0;
+
+  // Sends an event every 2 seconds, incrementing the ID
+  const id = setInterval(() => {
+    const evt = new ServerSentEvent(
+      "message",
+      { data: { hello: "world" }, id: counter++ },
+    );
+    target.dispatchEvent(evt);
+  }, 2000);
+
+  target.addEventListener("close", () => clearInterval(id));
+
+  return target.asResponse();
 });
 
 // This listens for when we connect and logs out to the console.
