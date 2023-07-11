@@ -24,7 +24,7 @@ import type {
   RequestEvent,
   Serializer,
   ServerConstructor,
-} from "./types.d.ts";
+} from "./types.ts";
 import {
   assert,
   CONTENT_TYPE_HTML,

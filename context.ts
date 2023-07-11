@@ -8,7 +8,7 @@
  */
 
 import { type SecureCookieMap, UserAgent } from "./deps.ts";
-import { type Addr, type Deserializer } from "./types.d.ts";
+import { type Addr, type Deserializer } from "./types.ts";
 
 interface ContextOptions<BodyType, Params extends Record<string, string>> {
   cookies: SecureCookieMap;

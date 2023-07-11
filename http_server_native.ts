@@ -6,7 +6,7 @@ import {
   type Listener,
   type RequestEvent,
   type Server,
-} from "./types.d.ts";
+} from "./types.ts";
 import { assert } from "./util.ts";
 
 const serveHttp =

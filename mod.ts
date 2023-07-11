@@ -45,4 +45,4 @@ export {
   RouterRequestEvent,
   type RouterRequestEventInit,
 } from "./router.ts";
-export { type Deserializer, type KeyRing, type Serializer } from "./types.d.ts";
+export { type Deserializer, type KeyRing, type Serializer } from "./types.ts";
