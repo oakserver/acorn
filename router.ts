@@ -884,11 +884,19 @@ export class Router extends EventTarget {
     );
     const { request } = requestEvent;
     const responseHeaders = new Headers();
-    const cookies = new SecureCookieMap(request, {
-      keys: this.#keys,
-      response: responseHeaders,
-      secure: this.#secure,
-    });
+    let cookies: SecureCookieMap;
+    try {
+      cookies = new SecureCookieMap(request, {
+        keys: this.#keys,
+        response: responseHeaders,
+        secure: this.#secure,
+      });
+    } catch {
+      // deal with a request dropping before the headers can be read which can
+      // occur under heavy load
+      this.#handling.delete(d);
+      return;
+    }
     const routerRequestEvent = new RouterRequestEvent({
       cookies,
       request,
