@@ -1,10 +1,6 @@
 // Copyright 2022-2023 the oak authors. All rights reserved.
 
-import {
-  assert,
-  assertEquals,
-  assertRejects,
-} from "https://deno.land/std@0.138.0/testing/asserts.ts";
+import { assert, assertEquals, assertRejects } from "./deps_test.ts";
 import { errors, SecureCookieMap, Status } from "./deps.ts";
 import { Context } from "./context.ts";
 
