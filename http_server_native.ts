@@ -91,6 +91,7 @@ export class NativeHttpServer implements Server {
           try {
             const requestEvent = await httpConn.nextRequest();
             if (requestEvent === null) {
+              server.#untrack(httpConn);
               return;
             }
 
