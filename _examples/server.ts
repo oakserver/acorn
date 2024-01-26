@@ -3,7 +3,7 @@
 import {
   ServerSentEvent,
   ServerSentEventStreamTarget,
-} from "https://deno.land/std@0.194.0/http/server_sent_event.ts";
+} from "https://deno.land/x/oak_commons@0.5.0/server_sent_event.ts";
 
 import { auth, immutable, Router } from "../mod.ts";
 import { createHttpError, Status } from "../deps.ts";

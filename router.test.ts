@@ -1,6 +1,6 @@
 // Copyright 2022-2023 the oak authors. All rights reserved.
 
-import { deferred, Status } from "./deps.ts";
+import { Status } from "./deps.ts";
 import { assertEquals } from "./deps_test.ts";
 import { Router, RouterRequestEvent } from "./router.ts";
 import { assert } from "./util.ts";
@@ -87,17 +87,17 @@ Deno.test({
     const { signal } = abortController;
     const rp: Promise<string>[] = [];
     router.get("/", () => {
-      const d = deferred<Response>();
+      const { promise, resolve } = Promise.withResolvers<Response>();
       setTimeout(
         () =>
-          d.resolve(
+          resolve(
             new Response(JSON.stringify({ hello: "world" }), {
               headers: { "content-type": "application/json" },
             }),
           ),
         200,
       );
-      return d;
+      return promise;
     });
     router.addEventListener("listen", ({ port, hostname }) => {
       rp.push(fetch(`http://${hostname}:${port}/`).then((r) => r.text()));

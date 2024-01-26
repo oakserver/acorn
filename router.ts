@@ -3,7 +3,6 @@
 import { Context } from "./context.ts";
 import {
   createHttpError,
-  deferred,
   isClientErrorStatus,
   isErrorStatus,
   isHttpError,
@@ -877,9 +876,9 @@ export class Router extends EventTarget {
   async #handle(requestEvent: RequestEvent, addr: Addr): Promise<void> {
     const uid = this.#uid++;
     performance.mark(`${HANDLE_START} ${uid}`);
-    const d = deferred<Response>();
-    this.#handling.add(d);
-    requestEvent.respondWith(d).catch((error) =>
+    const { promise, resolve } = Promise.withResolvers<Response>();
+    this.#handling.add(promise);
+    requestEvent.respondWith(promise).catch((error) =>
       this.#error(requestEvent.request, error, false)
     );
     const { request } = requestEvent;
@@ -894,7 +893,7 @@ export class Router extends EventTarget {
     } catch {
       // deal with a request dropping before the headers can be read which can
       // occur under heavy load
-      this.#handling.delete(d);
+      this.#handling.delete(promise);
       return;
     }
     const routerRequestEvent = new RouterRequestEvent({
@@ -923,7 +922,7 @@ export class Router extends EventTarget {
                 response.headers,
                 response,
               );
-              d.resolve(result ?? response);
+              resolve(result ?? response);
               const measure = performance.measure(
                 `handle ${uid}`,
                 `${HANDLE_START} ${uid}`,
@@ -948,8 +947,8 @@ export class Router extends EventTarget {
             if (!response) {
               response = this.#error(request, error, true);
             }
-            d.resolve(response);
-            this.#handling.delete(d);
+            resolve(response);
+            this.#handling.delete(promise);
             const measure = performance.measure(
               `handle ${uid}`,
               `${HANDLE_START} ${uid}`,
@@ -970,8 +969,8 @@ export class Router extends EventTarget {
         responseHeaders,
         response,
       );
-      d.resolve(result ?? response);
-      this.#handling.delete(d);
+      resolve(result ?? response);
+      this.#handling.delete(promise);
       const measure = performance.measure(
         `handle ${uid}`,
         `${HANDLE_START} ${uid}`,
@@ -988,8 +987,8 @@ export class Router extends EventTarget {
     if (!response) {
       response = this.#notFound(request);
     }
-    d.resolve(response);
-    this.#handling.delete(d);
+    resolve(response);
+    this.#handling.delete(promise);
     const measure = performance.measure(
       `handle ${uid}`,
       `${HANDLE_START} ${uid}`,
@@ -1416,16 +1415,16 @@ export class Router extends EventTarget {
    * This is intended to be used when the router isn't managing opening the
    * server and listening for requests. */
   handle(request: Request, init: RouterHandleInit): Promise<Response> {
-    const d = deferred<Response>();
+    const { promise, resolve } = Promise.withResolvers<Response>();
     this.#secure = init.secure ?? false;
     this.#handle({
       request,
       respondWith(response: Response | Promise<Response>): Promise<void> {
-        d.resolve(response);
+        resolve(response);
         return Promise.resolve();
       },
     }, init.addr);
-    return d;
+    return promise;
   }
 
   /** Open a server to listen for requests and handle them by matching against
