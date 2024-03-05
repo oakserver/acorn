@@ -3,7 +3,7 @@ export interface RequestEvent {
   readonly request: Request;
   // deno-lint-ignore no-explicit-any
   error(reason?: any): void;
-  respond(response: Response): void;
+  respond(response: Response | PromiseLike<Response>): void;
   upgrade?(options?: UpgradeWebSocketOptions): WebSocket;
 }
 

@@ -38,7 +38,6 @@ import {
   SecureCookieMap,
   Status,
 } from "./deps.ts";
-import Server from "./http_server_deno.ts";
 import type { Deserializer, KeyRing, Serializer } from "./types.ts";
 import type {
   Addr,
@@ -54,6 +53,7 @@ import {
   CONTENT_TYPE_TEXT,
   createPromiseWithResolvers,
   isBodyInit,
+  isBun,
   isHtmlLike,
   isJsonLike,
   responseFromHttpError,
@@ -748,6 +748,8 @@ export interface RouterHandleInit {
   secure?: boolean;
 }
 
+let ServerCtor: ServerConstructor | undefined;
+
 /** A router which is specifically geared for handling RESTful type of requests
  * and providing a straight forward API to respond to them.
  *
@@ -900,10 +902,8 @@ export class Router extends EventTarget {
     performance.mark(`${HANDLE_START} ${uid}`);
     const { promise, resolve } = Promise.withResolvers<Response>();
     this.#handling.add(promise);
-    promise.then((response) => {
-      requestEvent.respond(response);
-      this.#handling.delete(promise);
-    }).catch(
+    requestEvent.respond(promise);
+    promise.then(() => this.#handling.delete(promise)).catch(
       (error) => {
         this.#error(requestEvent.request, error, false);
       },
@@ -1463,7 +1463,10 @@ export class Router extends EventTarget {
   async listen(options: ListenOptions = { port: 0 }): Promise<void> {
     const {
       secure = false,
-      server: _Server = Server,
+      server: _Server = ServerCtor ??
+        (ServerCtor = isBun()
+          ? (await import("./http_server_bun.ts")).default
+          : (await import("./http_server_deno.ts")).default),
       signal,
       ...listenOptions
     } = options;

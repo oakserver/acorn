@@ -31,6 +31,11 @@ export function isJsonLike(value: string): boolean {
   return /^\s*["{[]/.test(value);
 }
 
+/** Determines if the runtime is Bun or not. */
+export function isBun(): boolean {
+  return "Bun" in globalThis;
+}
+
 const hasPromiseWithResolvers = "withResolvers" in Promise;
 
 /** Offloads to the native `Promise.withResolvers` when available.

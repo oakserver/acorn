@@ -53,7 +53,7 @@ class RequestEvent implements _RequestEvent {
   //deno-lint-ignore no-explicit-any
   #reject: (reason?: any) => void;
   #request: Request;
-  #resolve: (value: Response) => void;
+  #resolve: (value: Response | PromiseLike<Response>) => void;
   #resolved = false;
   #response: Promise<Response>;
 
@@ -87,7 +87,7 @@ class RequestEvent implements _RequestEvent {
     this.#reject(reason);
   }
 
-  respond(response: Response): void {
+  respond(response: Response | PromiseLike<Response>): void {
     if (this.#resolved) {
       throw new Error("Request already responded to.");
     }
