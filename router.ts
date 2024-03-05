@@ -59,6 +59,10 @@ import {
   responseFromHttpError,
 } from "./util.ts";
 
+if (!("URLPattern" in globalThis)) {
+  await import("npm:urlpattern-polyfill");
+}
+
 /** Valid return values from a route handler. */
 export type RouteResponse<Type> = Response | BodyInit | Type;
 
