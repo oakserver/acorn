@@ -1,6 +1,6 @@
 {
   "name": "@oak/acorn",
-  "version": "0.5.1-alpha.3",
+  "version": "0.5.1-alpha.4",
   "exports": {
     ".": "./mod.ts",
     "./context": "./context.ts",
@@ -9,9 +9,6 @@
     "./http_server_deno": "./http_server_deno.ts",
     "./router": "./router.ts",
     "./types": "./types.ts"
-  },
-  "imports": {
-    "urlpattern-polyfill": "npm:urlpattern-polyfill@10.0.0"
   },
   "tasks": {
     "bench": "deno bench",
