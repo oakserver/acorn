@@ -60,7 +60,7 @@ import {
 } from "./util.ts";
 
 if (!("URLPattern" in globalThis)) {
-  await import("npm:urlpattern-polyfill");
+  await import("urlpattern-polyfill");
 }
 
 /** Valid return values from a route handler. */
