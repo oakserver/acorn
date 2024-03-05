@@ -12,7 +12,7 @@
   "tasks": {
     "bench": "deno bench",
     "example": "deno run --allow-net --allow-hrtime _examples/server.ts",
-    "test": "deno test --allow-net"
+    "test": "deno test --allow-net --parallel"
   },
   "lock": false
 }
