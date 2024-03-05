@@ -60,13 +60,3 @@ export interface UpgradeWebSocketOptions {
    * The default is 120 seconds. Set to `0` to disable timeouts. */
   idleTimeout?: number;
 }
-
-export interface WebSocketUpgrade {
-  /** The response object that represents the HTTP response to the client,
-   * which should be used to the {@linkcode RequestEvent} `.respondWith()` for
-   * the upgrade to be successful. */
-  response: Response;
-  /** The {@linkcode WebSocket} interface to communicate to the client via a
-   * web socket. */
-  socket: WebSocket;
-}

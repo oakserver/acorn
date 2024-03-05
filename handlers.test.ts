@@ -1,10 +1,28 @@
 // Copyright 2022-2024 the oak authors. All rights reserved.
 
 import { assert, assertEquals, assertRejects } from "./deps_test.ts";
-import { errors, SecureCookieMap, Status } from "./deps.ts";
+import { errors, Status } from "./deps.ts";
 import { Context } from "./context.ts";
+import type { Addr, RequestEvent } from "./types_internal.ts";
 
 import { auth, immutable } from "./handlers.ts";
+
+function createRequestEvent(
+  input: RequestInfo | URL,
+  init?: RequestInit,
+): RequestEvent {
+  const request = new Request(input, init);
+  return {
+    get addr(): Addr {
+      return { transport: "tcp", hostname: "127.0.0.1", port: 8000 };
+    },
+    get request() {
+      return request;
+    },
+    error(_reason) {},
+    respond(_response) {},
+  };
+}
 
 Deno.test({
   name: "handler - auth() - authorized",
@@ -14,10 +32,9 @@ Deno.test({
       { authorize: () => true },
     );
     const context = new Context({
-      request: new Request("https://example.com/"),
+      requestEvent: createRequestEvent("https://example.com/"),
       params: {},
-      cookies: new SecureCookieMap(new Headers()),
-      addr: { transport: "tcp", hostname: "127.0.0.1", port: 8000 },
+      headers: new Headers(),
     });
     const response = await handlerWithOptions.handler(context);
     assertEquals(response, { hello: "world" });
@@ -32,10 +49,9 @@ Deno.test({
       { authorize: () => false },
     );
     const context = new Context({
-      request: new Request("https://example.com/"),
+      requestEvent: createRequestEvent("https://example.com/"),
       params: {},
-      cookies: new SecureCookieMap(new Headers()),
-      addr: { transport: "tcp", hostname: "127.0.0.1", port: 8000 },
+      headers: new Headers(),
     });
     await assertRejects(
       async () => {
@@ -55,10 +71,9 @@ Deno.test({
       { authorize: () => "not authorized" },
     );
     const context = new Context({
-      request: new Request("https://example.com/"),
+      requestEvent: createRequestEvent("https://example.com/"),
       params: {},
-      cookies: new SecureCookieMap(new Headers()),
-      addr: { transport: "tcp", hostname: "127.0.0.1", port: 8000 },
+      headers: new Headers(),
     });
     const response = await handlerWithOptions.handler(context);
     assert(response instanceof Response);
@@ -73,10 +88,9 @@ Deno.test({
     const handlerWithOptions = immutable({ hello: "world" });
     assertEquals(Object.keys(handlerWithOptions), ["handler"]);
     const context = new Context({
-      request: new Request("https://example.com/"),
+      requestEvent: createRequestEvent("https://example.com/"),
       params: {},
-      cookies: new SecureCookieMap(new Headers()),
-      addr: { transport: "tcp", hostname: "127.0.0.1", port: 8000 },
+      headers: new Headers(),
     });
     const response = await handlerWithOptions.handler(context);
     assert(response instanceof Response);

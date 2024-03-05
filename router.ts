@@ -570,25 +570,20 @@ class Route<
   }
 
   async handle(
-    request: Request,
-    addr: Addr,
+    requestEvent: RequestEvent,
     headers: Headers,
     secure: boolean,
     keys?: KeyRing,
   ): Promise<Response | undefined> {
     assert(this.#params, "params should have been set in .matches()");
-    const cookies = new SecureCookieMap(request, {
-      keys,
-      response: headers,
-      secure,
-    });
     const context = new Context<BodyType, Params>(
       {
-        cookies,
-        addr,
         deserializer: this.#deserializer,
+        headers,
+        keys,
         params: this.#params,
-        request,
+        requestEvent,
+        secure,
       },
     );
     const result = await this.#handler(context);
@@ -612,7 +607,11 @@ class Route<
     if (result) {
       if (this.#serializer?.toResponse) {
         return appendHeaders(
-          await this.#serializer.toResponse(result, this.#params, request),
+          await this.#serializer.toResponse(
+            result,
+            this.#params,
+            requestEvent.request,
+          ),
           headers,
         );
       } else {
@@ -661,20 +660,14 @@ class StatusRoute<S extends Status> {
 
   async handle(
     status: Status,
-    request: Request,
-    addr: Addr,
+    requestEvent: RequestEvent,
     response: Response | undefined,
     responseHeaders: Headers,
     secure: boolean,
     keys?: KeyRing,
   ): Promise<Response | undefined> {
     const headers = response ? new Headers(response.headers) : responseHeaders;
-    const cookies = new SecureCookieMap(request, {
-      keys,
-      response: headers,
-      secure,
-    });
-    const context = new Context({ cookies, request, addr });
+    const context = new Context({ requestEvent, headers, secure, keys });
     const result = await this.#handler(context, status as S, response);
     if (result instanceof Response) {
       return appendHeaders(result, headers);
@@ -843,7 +836,11 @@ export class Router extends EventTarget {
     return r;
   }
 
-  #error(request: Request, error: unknown, respondable: boolean): Response {
+  #error(
+    request: Request,
+    error: unknown,
+    respondable: boolean,
+  ): Response {
     const message = error instanceof Error ? error.message : "Internal error";
     const event = new RouterErrorEvent({
       request,
@@ -872,8 +869,7 @@ export class Router extends EventTarget {
 
   async #handleStatus(
     status: Status,
-    request: Request,
-    addr: Addr,
+    requestEvent: RequestEvent,
     responseHeaders: Headers,
     response?: Response,
   ): Promise<Response | undefined> {
@@ -882,8 +878,7 @@ export class Router extends EventTarget {
         try {
           const result = await route.handle(
             status,
-            request,
-            addr,
+            requestEvent,
             response,
             responseHeaders,
             this.#secure,
@@ -893,7 +888,7 @@ export class Router extends EventTarget {
             response = result;
           }
         } catch (error) {
-          return this.#error(request, error, true);
+          return this.#error(requestEvent.request, error, true);
         }
       }
     }
@@ -913,7 +908,7 @@ export class Router extends EventTarget {
         this.#error(requestEvent.request, error, false);
       },
     );
-    const { request, addr } = requestEvent;
+    const { request } = requestEvent;
     const responseHeaders = new Headers();
     let cookies: SecureCookieMap;
     try {
@@ -940,8 +935,7 @@ export class Router extends EventTarget {
         if (route.matches(request)) {
           try {
             const response = await route.handle(
-              request,
-              addr,
+              requestEvent,
               responseHeaders,
               this.#secure,
               this.#keys,
@@ -949,8 +943,7 @@ export class Router extends EventTarget {
             if (response) {
               const result = await this.#handleStatus(
                 response.status,
-                request,
-                addr,
+                requestEvent,
                 response.headers,
                 response,
               );
@@ -971,8 +964,7 @@ export class Router extends EventTarget {
               : response?.status ?? Status.InternalServerError;
             response = await this.#handleStatus(
               status,
-              request,
-              addr,
+              requestEvent,
               responseHeaders,
               response,
             );
@@ -996,8 +988,7 @@ export class Router extends EventTarget {
       const { response } = routerRequestEvent;
       const result = await this.#handleStatus(
         response.status,
-        request,
-        addr,
+        requestEvent,
         responseHeaders,
         response,
       );
@@ -1012,8 +1003,7 @@ export class Router extends EventTarget {
     }
     let response = await this.#handleStatus(
       Status.NotFound,
-      request,
-      addr,
+      requestEvent,
       responseHeaders,
     );
     if (!response) {

@@ -7,25 +7,21 @@
  * @module
  */
 
-import {
-  createHttpError,
-  type SecureCookieMap,
-  Status,
-  UserAgent,
-} from "./deps.ts";
-import type { Deserializer } from "./types.ts";
+import { createHttpError, SecureCookieMap, Status, UserAgent } from "./deps.ts";
+import type { Deserializer, KeyRing } from "./types.ts";
 import type {
   Addr,
+  RequestEvent,
   UpgradeWebSocketOptions,
-  WebSocketUpgrade,
 } from "./types_internal.ts";
 
 interface ContextOptions<BodyType, Params extends Record<string, string>> {
-  cookies: SecureCookieMap;
   deserializer?: Deserializer<BodyType, Params>;
+  headers: Headers;
+  keys?: KeyRing;
   params?: Params;
-  request: Request;
-  addr: Addr;
+  secure?: boolean;
+  requestEvent: RequestEvent;
 }
 
 /** An object that provides context for the associated request and response.
@@ -34,13 +30,13 @@ export class Context<
   BodyType = unknown,
   Params extends Record<string, string> = Record<string, string>,
 > {
-  #addr: Addr;
   #body?: BodyType;
   #bodySet = false;
   #cookies: SecureCookieMap;
   #deserializer?: Deserializer<BodyType, Params>;
   #params: Params;
-  #request: Request;
+  #requestEvent: RequestEvent;
+  #responded = false;
   #searchParams?: Record<string, string>;
   #url?: URL;
   #userAgent: UserAgent;
@@ -59,12 +55,20 @@ export class Context<
 
   /** The original {@linkcode Request} associated with this request. */
   get request(): Request {
-    return this.#request;
+    return this.#requestEvent.request;
+  }
+
+  /**
+   * Indicates if the response has already been responded to, like when
+   * upgrading to a websocket.
+   */
+  get responded(): boolean {
+    return this.#responded;
   }
 
   /** The address this request. */
   get addr(): Addr {
-    return this.#addr;
+    return this.#requestEvent.addr;
   }
 
   /** Any search parameters associated with the request. */
@@ -77,28 +81,36 @@ export class Context<
     return this.#searchParams;
   }
 
-  /** Information about the parsed user agent string associated with the
-   * `Request` if available.
+  /**
+   * Information about the parsed user agent string associated with the
+   * {@linkcode Request} if available.
    *
    * See:
    * [std/http/user_agent#UserAgent](https://deno.land/std/http/user_agent.ts?s=UserAgent)
-   * for more information. */
+   * for more information.
+   */
   get userAgent(): UserAgent {
     return this.#userAgent;
   }
 
   constructor(
-    { request, addr, params, deserializer, cookies }: ContextOptions<
-      BodyType,
-      Params
-    >,
+    { requestEvent, keys, headers, secure, params, deserializer }:
+      ContextOptions<
+        BodyType,
+        Params
+      >,
   ) {
-    this.#request = request;
-    this.#addr = addr;
+    this.#requestEvent = requestEvent;
     this.#params = params ?? {} as Params;
     this.#deserializer = deserializer;
-    this.#cookies = cookies;
-    this.#userAgent = new UserAgent(request.headers.get("user-agent"));
+    this.#cookies = new SecureCookieMap(requestEvent.request, {
+      keys,
+      response: headers,
+      secure,
+    });
+    this.#userAgent = new UserAgent(
+      requestEvent.request.headers.get("user-agent"),
+    );
   }
 
   /** A convenience method to deal with decoding a JSON string body. It can be
@@ -110,17 +122,17 @@ export class Context<
       return this.#body;
     }
     this.#bodySet = true;
-    if (!this.#request.bodyUsed) {
+    if (!this.#requestEvent.request.bodyUsed) {
       if (this.#deserializer) {
-        const bodyString = await this.#request.text();
+        const bodyString = await this.#requestEvent.request.text();
         this.#body = await this.#deserializer.parse(
           bodyString,
           this.#params,
-          this.#request,
+          this.#requestEvent.request,
         );
       } else {
         try {
-          this.#body = await this.#request.json();
+          this.#body = await this.#requestEvent.request.json();
         } catch {
           this.#body = undefined;
         }
@@ -151,20 +163,21 @@ export class Context<
    * @param options
    * @returns
    */
-  upgrade(options?: UpgradeWebSocketOptions): WebSocketUpgrade {
-    if (!Deno || !("upgradeWebSocket" in Deno)) {
+  upgrade(options?: UpgradeWebSocketOptions): WebSocket {
+    if (!this.#requestEvent.upgrade) {
       throw createHttpError(
         Status.ServiceUnavailable,
         "Web sockets not supported.",
       );
     }
-    return Deno.upgradeWebSocket(this.#request, options);
+    this.#responded = true;
+    return this.#requestEvent.upgrade(options);
   }
 
   /** Returns the request URL as a parsed {@linkcode URL} object. */
   url(): URL {
     if (!this.#url) {
-      this.#url = new URL(this.#request.url);
+      this.#url = new URL(this.#requestEvent.request.url);
     }
     return this.#url;
   }
