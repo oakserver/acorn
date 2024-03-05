@@ -1,5 +1,6 @@
 // Copyright 2022-2024 the oak authors. All rights reserved.
 
+export { assert } from "jsr:@std/assert@0.218/assert";
 export {
   type Data as SigningData,
   type Key as SigningKey,

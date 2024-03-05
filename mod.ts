@@ -28,7 +28,7 @@
 export { type Context } from "./context.ts";
 export { type SigningData, type SigningKey } from "./deps.ts";
 export { auth, immutable } from "./handlers.ts";
-export { NativeHttpServer } from "./http_server_native.ts";
+export { default as DenoServer } from "./http_server_deno.ts";
 export {
   HandledEvent,
   NotFoundEvent,

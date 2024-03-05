@@ -12,15 +12,6 @@ export const CONTENT_TYPE_HTML = contentType("html")!;
 export const CONTENT_TYPE_JSON = contentType("json")!;
 export const CONTENT_TYPE_TEXT = contentType("text/plain")!;
 
-export function assert(
-  cond: unknown,
-  message = "Assertion Error",
-): asserts cond {
-  if (!cond) {
-    throw new Error(message);
-  }
-}
-
 /** A type guard which determines if the value can be used as `BodyInit` for
  * creating a body of a `Response`. */
 export function isBodyInit(value: unknown): value is BodyInit {
@@ -38,6 +29,30 @@ export function isHtmlLike(value: string): boolean {
 /** Determines if the string looks like JSON. */
 export function isJsonLike(value: string): boolean {
   return /^\s*["{[]/.test(value);
+}
+
+const hasPromiseWithResolvers = "withResolvers" in Promise;
+
+/** Offloads to the native `Promise.withResolvers` when available.
+ *
+ * Currently Node.js does not support it, while Deno and Bun do.
+ */
+export function createPromiseWithResolvers<T>(): {
+  promise: Promise<T>;
+  resolve: (value: T | PromiseLike<T>) => void;
+  // deno-lint-ignore no-explicit-any
+  reject: (reason?: any) => void;
+} {
+  if (hasPromiseWithResolvers) {
+    return Promise.withResolvers<T>();
+  }
+  let resolve;
+  let reject;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve: resolve!, reject: reject! };
 }
 
 /** Generate a `Response` based on the original `Request` and an `HttpError`.

@@ -13,12 +13,12 @@ import {
   Status,
   UserAgent,
 } from "./deps.ts";
-import {
-  type Addr,
-  type Deserializer,
-  type UpgradeWebSocketOptions,
-  type WebSocketUpgrade,
-} from "./types.ts";
+import type { Deserializer } from "./types.ts";
+import type {
+  Addr,
+  UpgradeWebSocketOptions,
+  WebSocketUpgrade,
+} from "./types_internal.ts";
 
 interface ContextOptions<BodyType, Params extends Record<string, string>> {
   cookies: SecureCookieMap;

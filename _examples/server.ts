@@ -6,8 +6,7 @@ import {
 } from "jsr:@oak/commons@0.7/server_sent_event";
 
 import { auth, immutable, Router } from "../mod.ts";
-import { createHttpError, Status } from "../deps.ts";
-import { assert } from "../util.ts";
+import { assert, createHttpError, Status } from "../deps.ts";
 
 // A mock datastore where we index our books based on id.
 const BOOK_DB: Record<string, Book> = {

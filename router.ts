@@ -26,6 +26,7 @@
 
 import { Context } from "./context.ts";
 import {
+  assert,
   createHttpError,
   isClientErrorStatus,
   isErrorStatus,
@@ -37,22 +38,21 @@ import {
   SecureCookieMap,
   Status,
 } from "./deps.ts";
-import { NativeHttpServer } from "./http_server_native.ts";
+import Server from "./http_server_deno.ts";
+import type { Deserializer, KeyRing, Serializer } from "./types.ts";
 import type {
   Addr,
-  Deserializer,
   Destroyable,
-  KeyRing,
   Listener,
   RequestEvent,
-  Serializer,
+  Server as _Server,
   ServerConstructor,
-} from "./types.ts";
+} from "./types_internal.ts";
 import {
-  assert,
   CONTENT_TYPE_HTML,
   CONTENT_TYPE_JSON,
   CONTENT_TYPE_TEXT,
+  createPromiseWithResolvers,
   isBodyInit,
   isHtmlLike,
   isJsonLike,
@@ -900,15 +900,20 @@ export class Router extends EventTarget {
     return response;
   }
 
-  async #handle(requestEvent: RequestEvent, addr: Addr): Promise<void> {
+  async #handle(requestEvent: RequestEvent): Promise<void> {
     const uid = this.#uid++;
     performance.mark(`${HANDLE_START} ${uid}`);
     const { promise, resolve } = Promise.withResolvers<Response>();
     this.#handling.add(promise);
-    requestEvent.respondWith(promise).catch((error) =>
-      this.#error(requestEvent.request, error, false)
+    promise.then((response) => {
+      requestEvent.respond(response);
+      this.#handling.delete(promise);
+    }).catch(
+      (error) => {
+        this.#error(requestEvent.request, error, false);
+      },
     );
-    const { request } = requestEvent;
+    const { request, addr } = requestEvent;
     const responseHeaders = new Headers();
     let cookies: SecureCookieMap;
     try {
@@ -1442,15 +1447,20 @@ export class Router extends EventTarget {
    * This is intended to be used when the router isn't managing opening the
    * server and listening for requests. */
   handle(request: Request, init: RouterHandleInit): Promise<Response> {
-    const { promise, resolve } = Promise.withResolvers<Response>();
+    const { promise, resolve, reject } = createPromiseWithResolvers<Response>();
     this.#secure = init.secure ?? false;
     this.#handle({
-      request,
-      respondWith(response: Response | Promise<Response>): Promise<void> {
-        resolve(response);
-        return Promise.resolve();
+      get addr() {
+        return init.addr;
       },
-    }, init.addr);
+      request,
+      respond(response) {
+        resolve(response);
+      },
+      error(reason) {
+        reject(reason);
+      },
+    });
     return promise;
   }
 
@@ -1463,18 +1473,18 @@ export class Router extends EventTarget {
   async listen(options: ListenOptions = { port: 0 }): Promise<void> {
     const {
       secure = false,
-      server: Server = NativeHttpServer,
+      server: _Server = Server,
       signal,
       ...listenOptions
     } = options;
     if (!("port" in listenOptions)) {
       listenOptions.port = 0;
     }
-    const server = new Server(this, listenOptions as Deno.ListenOptions);
+    const server = new _Server(listenOptions);
     this.#state = {
       closed: false,
       closing: false,
-      server: Server,
+      server: _Server,
     };
     this.#secure = secure;
     if (signal) {
@@ -1482,6 +1492,7 @@ export class Router extends EventTarget {
         assert(this.#state, "router state should exist");
         this.#state.closing = true;
         await Promise.all(this.#handling);
+        this.#handling.clear();
         await server.close();
         this.#state.closed = true;
       });
@@ -1497,8 +1508,8 @@ export class Router extends EventTarget {
       }),
     );
     try {
-      for await (const [requestEvent, addr] of server) {
-        this.#handle(requestEvent, addr);
+      for await (const requestEvent of server) {
+        this.#handle(requestEvent);
       }
       await Promise.all(this.#handling);
     } catch (error) {

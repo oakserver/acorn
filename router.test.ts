@@ -1,9 +1,8 @@
 // Copyright 2022-2024 the oak authors. All rights reserved.
 
 import { Status } from "./deps.ts";
-import { assertEquals } from "./deps_test.ts";
+import { assert, assertEquals } from "./deps_test.ts";
 import { Router, RouterRequestEvent } from "./router.ts";
-import { assert } from "./util.ts";
 
 Deno.test({
   name: "Router - basic usage",
@@ -99,13 +98,12 @@ Deno.test({
       );
       return promise;
     });
-    router.addEventListener("listen", ({ port, hostname }) => {
+    router.addEventListener("listen", ({ hostname, port }) => {
       rp.push(fetch(`http://${hostname}:${port}/`).then((r) => r.text()));
       rp.push(fetch(`http://${hostname}:${port}/`).then((r) => r.text()));
       setTimeout(() => abortController.abort(), 100);
     });
     await router.listen({ signal });
-    // deno-lint-ignore no-explicit-any
-    return Promise.all(rp) as Promise<any>;
+    return Promise.all(rp).then(() => {});
   },
 });
