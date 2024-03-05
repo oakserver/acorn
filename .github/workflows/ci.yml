@@ -3,11 +3,11 @@ name: ci
 on: [push, pull_request]
 
 jobs:
-  oak:
+  ci:
     runs-on: ubuntu-latest
     steps:
       - name: clone repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: install deno
         uses: denoland/setup-deno@v1
