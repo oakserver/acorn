@@ -1,5 +1,36 @@
 # acorn change log
 
+## Version 0.5.0
+
+- feat: use `Deno.serve()` instead of `Deno.serveHttp()` (014019b)
+
+  **BREAKING CHANGE** acorn now uses the `Deno.serve()` API instead of
+  `Deno.serveHttp()` which is deprecated. This requires some breaking changes in
+  the way options are supplied on `.listen()` for SSL/TLS connections.
+
+- feat: web socket upgrade auto-responds (46e9e07)
+
+  **BREAKING CHANGE** acorn now sends the response when performing a websocket
+  upgrade. Previously the `Response` to initiate the connection would be
+  returned from the function and it was the responsibility of the user to send
+  that back to the client.
+
+- feat: support Bun's http server (7f08edc)
+
+  acorn will detect if it is running in the Bun runtime and utilize Bun's built
+  in HTTP server.
+
+  Currently web socket upgrade are not supported when running under Bun.
+
+- fix: make handling requests more robust (3df07a4)
+- fix: memory leak in server wrapper (8920f73)
+- tests: add benchmark test (9f2fb34)
+- chore: update to std 0.212.0, commons 0.5.0 (8e3ffa7)
+- chore: updates to prep for JSR publish (cca89b7)
+- chore: update ci (14b51d5)
+- chore: add parallel flag to tests (1011b87)
+- docs: add a couple module docs (acdca92)
+
 ## Version 0.4.0
 
 - feat: add userAgent property to context (d680246)
