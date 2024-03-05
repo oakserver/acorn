@@ -1,5 +1,11 @@
 // Copyright 2022-2024 the oak authors. All rights reserved.
 
+/**
+ * Types that make part of the public API of acorn.
+ *
+ * @module
+ */
+
 import type { SigningData } from "./deps.ts";
 
 /** An abstract interface for cryptographic key rings that can be used to sign

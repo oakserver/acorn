@@ -1,5 +1,12 @@
 // Copyright 2022-2024 the oak authors. All rights reserved.
 
+/**
+ * The implementation of the acorn server interface for Deno CLI and Deno
+ * Deploy.
+ *
+ * @module
+ */
+
 import type {
   Addr,
   Listener,
