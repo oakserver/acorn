@@ -1,4 +1,4 @@
-import { pathToRegexp } from "https://deno.land/x/path_to_regexp@v6.2.1/index.ts";
+import { pathToRegexp } from "npm:path-to-regexp@6.2.1";
 
 const urlPattern = new URLPattern("/", "http://localhost/");
 

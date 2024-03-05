@@ -1,4 +1,4 @@
-// Copyright 2022-2023 the oak authors. All rights reserved.
+// Copyright 2022-2024 the oak authors. All rights reserved.
 
 /**
  * Contains the class {@linkcode Context} which provides context for the request

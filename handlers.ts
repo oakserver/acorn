@@ -1,4 +1,4 @@
-// Copyright 2022-2023 the oak authors. All rights reserved.
+// Copyright 2022-2024 the oak authors. All rights reserved.
 
 /** Contains handler factory functions which simplify some common use cases.
  *
@@ -42,10 +42,9 @@ export interface AuthOptions<
  * The {@linkcode auth} handler takes the content handler plus options which
  * includes an authorization handler.
  *
- * ### Example
- *
+ * @example
  * ```ts
- * import { Router, immutable } from "https://deno.land/x/acorn/mod.ts";
+ * import { Router, immutable } from "jsr:@oak/acorn/";
  *
  * const router = new Router();
  *
@@ -105,7 +104,7 @@ export function auth<
  * ## Example
  *
  * ```ts
- * import { Router, immutable } from "https://deno.land/x/acorn/mod.ts";
+ * import { Router, immutable } from "jsr:@oak/acorn/";
  *
  * const router = new Router();
  *

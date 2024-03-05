@@ -1,4 +1,28 @@
-// Copyright 2022-2023 the oak authors. All rights reserved.
+// Copyright 2022-2024 the oak authors. All rights reserved.
+
+/**
+ * The router for acorn, which is the foundational part of the framework.
+ *
+ * @example
+ * ```ts
+ * import { Router } from "jsr:@oak/acorn/router";
+ *
+ * const router = new Router();
+ *
+ * router.get("/", () => ({ hello: "world" }));
+ *
+ * const BOOKS = {
+ *   "1": { title: "The Hound of the Baskervilles" },
+ *   "2": { title: "It" },
+ * };
+ *
+ * router.get("/books/:id", (ctx) => BOOKS[ctx.params.id]);
+ *
+ * router.listen({ port: 3000 });
+ * ```
+ *
+ * @module
+ */
 
 import { Context } from "./context.ts";
 import {
@@ -82,6 +106,11 @@ export interface RouteHandler<
     | undefined;
 }
 
+/**
+ * The interface too status handlers, which are registered on the
+ * {@linkcode Router} via the `.on()` method and intended for being notified of
+ * certain state changes related to routing requests.
+ */
 export interface StatusHandler<S extends Status> {
   (
     context: Context<unknown, Record<string, string>>,
@@ -718,6 +747,8 @@ class StatusRoute<S extends Status> {
   }
 }
 
+/** Context to be provided when invoking the `.handle()` method on the
+ * router. */
 export interface RouterHandleInit {
   addr: Addr;
   /** @default {false} */
@@ -730,24 +761,20 @@ export interface RouterHandleInit {
  * A {@linkcode RouteHandler} is registered with the router, and when a request
  * matches a route the handler will be invoked. The handler will be provided
  * with {@linkcode Context} of the current request. The handler can return a
- * web platform
- * [`Response`](https://developer.mozilla.org/en-US/docs/Web/API/Response)
- * instance, {@linkcode BodyInit} value, or any other object which will be to be
- * serialized to a JSON string as set as the value of the response body.
+ * web platform {@linkcode Response} instance, {@linkcode BodyInit} value, or
+ * any other object which will be to be serialized to a JSON string as set as
+ * the value of the response body.
  *
  * The handler context includes a property named `cookies` which is an instance
  * of {@linkcode Cookies}, which provides an interface for reading request
  * cookies and setting cookies in the response. `Cookies` supports cryptographic
  * signing of keys using a key ring which adheres to the {@linkcode KeyRing}
  * interface, which can be passed as an option when creating the router.
- * [KeyStack](https://doc.deno.land/https://deno.land/x/oak_commons/key_stack.ts/~/KeyStack)
- * is a key ring that implements this interface.
  *
- * The route is specified using the pathname part of the
- * [`URLPattern` API](https://developer.mozilla.org/en-US/docs/Web/API/URL_Pattern_API),
- * which supports routes with wildcards (e.g. `/posts/*`) and named groups (e.g.
- * `/books/:id`) which are then provided as `.params` on the context argument to
- * the handler.
+ * The route is specified using the pathname part of the {@linkcode URLPattern}
+ * API which supports routes with wildcards (e.g. `/posts/*`) and named groups
+ * (e.g. `/books/:id`) which are then provided as `.params` on the context
+ * argument to the handler.
  *
  * When registering a route handler, a {@linkcode Deserializer},
  * {@linkcode Serializer}, and {@linkcode ErrorHandler} can all be specified.
@@ -777,7 +804,7 @@ export interface RouterHandleInit {
  * ## Example
  *
  * ```ts
- * import { Router } from "https://deno.land/x/acorn/mod.ts";
+ * import { Router } from "jsr:@oak/acorn/router";
  *
  * const router = new Router();
  *
@@ -1584,7 +1611,9 @@ export class Router extends EventTarget {
     super.addEventListener(type, listener, options);
   }
 
-  [Symbol.for("Deno.customInspect")](inspect: (value: unknown) => string) {
+  [Symbol.for("Deno.customInspect")](
+    inspect: (value: unknown) => string,
+  ): string {
     return `${this.constructor.name} ${inspect({})}`;
   }
 
@@ -1593,7 +1622,8 @@ export class Router extends EventTarget {
     // deno-lint-ignore no-explicit-any
     options: any,
     inspect: (value: unknown, options?: unknown) => string,
-  ) {
+    // deno-lint-ignore no-explicit-any
+  ): any {
     if (depth < 0) {
       return options.stylize(`[${this.constructor.name}]`, "special");
     }

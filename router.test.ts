@@ -1,4 +1,4 @@
-// Copyright 2022-2023 the oak authors. All rights reserved.
+// Copyright 2022-2024 the oak authors. All rights reserved.
 
 import { Status } from "./deps.ts";
 import { assertEquals } from "./deps_test.ts";

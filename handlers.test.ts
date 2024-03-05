@@ -1,4 +1,4 @@
-// Copyright 2022-2023 the oak authors. All rights reserved.
+// Copyright 2022-2024 the oak authors. All rights reserved.
 
 import { assert, assertEquals, assertRejects } from "./deps_test.ts";
 import { errors, SecureCookieMap, Status } from "./deps.ts";

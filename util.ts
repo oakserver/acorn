@@ -1,4 +1,10 @@
-// Copyright 2022-2023 the oak authors. All rights reserved.
+// Copyright 2022-2024 the oak authors. All rights reserved.
+
+/**
+ * Contains some internal utilities.
+ *
+ * @module
+ */
 
 import { accepts, contentType, type HttpError, STATUS_TEXT } from "./deps.ts";
 
@@ -36,7 +42,7 @@ export function isJsonLike(value: string): boolean {
 
 /** Generate a `Response` based on the original `Request` and an `HttpError`.
  * It will ensure negotiation of the content type and will provide the stack
- * trace in errors that are marked as exposeable. */
+ * trace in errors that are marked as expose-able. */
 export function responseFromHttpError(
   request: Request,
   error: HttpError,

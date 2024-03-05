@@ -1,9 +1,9 @@
-// Copyright 2022-2023 the oak authors. All rights reserved.
+// Copyright 2022-2024 the oak authors. All rights reserved.
 
 import {
   ServerSentEvent,
   ServerSentEventStreamTarget,
-} from "https://deno.land/x/oak_commons@0.5.0/server_sent_event.ts";
+} from "jsr:@oak/commons@0.7/server_sent_event";
 
 import { auth, immutable, Router } from "../mod.ts";
 import { createHttpError, Status } from "../deps.ts";

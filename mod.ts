@@ -1,13 +1,12 @@
-// Copyright 2022-2023 the oak authors. All rights reserved.
+// Copyright 2022-2024 the oak authors. All rights reserved.
 
 /**
  * Provides a router which specifically tailored for providing RESTful
  * endpoints.
  *
- * ## Example
- *
+ * @example
  * ```ts
- * import { Router } from "https://deno.land/x/acorn/mod.ts";
+ * import { Router } from "jsr:@oak/acorn/router";
  *
  * const router = new Router();
  *

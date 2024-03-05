@@ -1,4 +1,14 @@
 {
+  "name": "@oak/acorn",
+  "version": "0.4.0",
+  "exports": {
+    ".": "./mod.ts",
+    "./context": "./context.ts",
+    "./handlers": "./handlers.ts",
+    "./http_server_native": "./http_server_native.ts",
+    "./router": "./router.ts",
+    "./types": "./types.ts"
+  },
   "tasks": {
     "bench": "deno bench",
     "example": "deno run --allow-net --allow-hrtime _examples/server.ts",
