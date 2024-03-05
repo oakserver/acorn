@@ -17,6 +17,10 @@ import type {
 } from "./types_internal.ts";
 import { createPromiseWithResolvers } from "./util.ts";
 
+if (!("URLPattern" in globalThis)) {
+  await import("npm:urlpattern-polyfill");
+}
+
 type TypedArray =
   | Uint8Array
   | Uint16Array
