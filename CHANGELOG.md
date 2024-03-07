@@ -1,5 +1,14 @@
 # acorn change log
 
+## Version 0.5.1
+
+- fix: polyfill URLPattern under Bun (8e21f32)
+- fix: move loading of URLPattern polyfill (828fed3)
+- fix: add urlpattern-polyfill to deno.json (25edc9)
+- fix: move npm dep to package.json (8a615f1)
+- fix: fix npm dependencies (f09b303)
+- docs: update inline docs and readme around Bun (297a38f)
+
 ## Version 0.5.0
 
 - feat: use `Deno.serve()` instead of `Deno.serveHttp()` (014019b)
