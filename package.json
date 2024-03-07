@@ -1,5 +1,0 @@
-{
-  "dependencies": {
-    "urlpattern-polyfill": "npm:urlpattern-polyfill@10.0.0"
-  }
-}
