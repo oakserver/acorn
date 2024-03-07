@@ -3,7 +3,13 @@
 [![ci](https://github.com/oakserver/acorn/workflows/ci/badge.svg)](https://github.com/oakserver/acorn)
 
 Rapidly develop and iterate on RESTful APIs using a strongly typed router
-designed for Deno CLI and Deno Deploy.
+designed for Deno CLI, Deno Deploy and Bun.
+
+## Usage
+
+### Under Deno CLI or Deploy
+
+You need to import the package into your code:
 
 ```ts
 import { Router } from "jsr:@oak/acorn/router";
@@ -21,9 +27,35 @@ router.get("/books/:id", (ctx) => BOOKS[ctx.params.id]);
 router.listen({ port: 5000 });
 ```
 
+### Under Bun
+
+You need to add the package to your project:
+
+```
+bunx jsr add @oak/acorn
+```
+
+Then you need to import the package into your code:
+
+```ts
+import { Router } from "@oak/acorn/router";
+
+const BOOKS: Record<string, { id: number; title: string }> = {
+  "1": { id: 1, title: "The Hound of the Baskervilles" },
+  "2": { id: 2, title: "It" },
+};
+
+const router = new Router();
+
+router.get("/", () => ({ hello: "world" }));
+router.get("/books/:id", (ctx) => BOOKS[ctx.params.id]);
+
+router.listen({ port: 5000 });
+```
+
 ## Philosophy
 
-After having spent years working on [oak](https://deno.land/x/oak) and extensive
+After having spent years working on [oak](https://jsr.io/@oak/oak) and extensive
 experience with building Deno, that really when people were looking at
 middleware type of solution, really what they were looking fore was a straight
 forward router that made it easy to handle JSON payloads.

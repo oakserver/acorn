@@ -4,9 +4,41 @@
  * Provides a router which specifically tailored for providing RESTful
  * endpoints.
  *
+ * ## Using with Deno
+ *
+ * You need to reference the `@oak/acorn` package in code:
+ *
  * @example
  * ```ts
  * import { Router } from "jsr:@oak/acorn/router";
+ *
+ * const router = new Router();
+ *
+ * router.get("/", () => ({ hello: "world" }));
+ *
+ * const BOOKS = {
+ *   "1": { title: "The Hound of the Baskervilles" },
+ *   "2": { title: "It" },
+ * };
+ *
+ * router.get("/books/:id", (ctx) => BOOKS[ctx.params.id]);
+ *
+ * router.listen({ port: 3000 });
+ * ```
+ *
+ * ## Using with Bun
+ *
+ * You need to install/add the package to your project via:
+ *
+ * ```
+ * bunx jsr add @oak/acorn
+ * ```
+ *
+ * And then you import it into your project:
+ *
+ * @example
+ * ```ts
+ * import { Router } from "@oak/acorn/router";
  *
  * const router = new Router();
  *
