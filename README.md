@@ -7,40 +7,51 @@ designed for Deno CLI, Deno Deploy and Bun.
 
 ## Usage
 
-### Under Deno CLI or Deploy
+### Under Deno runtime or Deploy
 
-You need to import the package into your code:
+Add the package to your project:
 
-```ts
-import { Router } from "jsr:@oak/acorn/router";
+```
+deno add @oak/acorn
+```
 
-const BOOKS: Record<string, { id: number; title: string }> = {
-  "1": { id: 1, title: "The Hound of the Baskervilles" },
-  "2": { id: 2, title: "It" },
-};
+### Under Node.js and Cloudflare Workers
 
-const router = new Router();
+Install the package using your chosen package manager:
 
-router.get("/", () => ({ hello: "world" }));
-router.get("/books/:id", (ctx) => BOOKS[ctx.params.id]);
+#### npm
 
-router.listen({ port: 5000 });
+```
+npx jsr add @oak/acorn
+```
+
+#### Yarn
+
+```
+yarn dlx jsr add @oak/acorn
+```
+
+#### pnpm
+
+```
+pnpm dlx jsr add @oak/acorn
 ```
 
 ### Under Bun
-
-You need to add the package to your project:
 
 ```
 bunx jsr add @oak/acorn
 ```
 
-Then you need to import the package into your code:
+### Listening
+
+For Deno, Node.js, and Bun the router needs to be configured and then start
+listening for requests:
 
 ```ts
-import { Router } from "@oak/acorn/router";
+import { Router } from "@oak/acorn";
 
-const BOOKS: Record<string, { id: number; title: string }> = {
+const BOOKS = {
   "1": { id: 1, title: "The Hound of the Baskervilles" },
   "2": { id: 2, title: "It" },
 };
@@ -51,6 +62,29 @@ router.get("/", () => ({ hello: "world" }));
 router.get("/books/:id", (ctx) => BOOKS[ctx.params.id]);
 
 router.listen({ port: 5000 });
+```
+
+### Fetch handlers
+
+For Cloudflare Workers the router needs to be configured and the router's fetch
+handler needs to be exported:
+
+```ts
+import { Router } from "@oak/acorn";
+
+const BOOKS = {
+  "1": { id: 1, title: "The Hound of the Baskervilles" },
+  "2": { id: 2, title: "It" },
+};
+
+const router = new Router();
+
+router.get("/", () => ({ hello: "world" }));
+router.get("/books/:id", (ctx) => BOOKS[ctx.params.id]);
+
+router.listen({ port: 5000 });
+
+export default { fetch: router.fetch };
 ```
 
 ## Philosophy

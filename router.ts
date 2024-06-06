@@ -38,9 +38,12 @@ import {
   SecureCookieMap,
   Status,
 } from "./deps.ts";
+import type { RequestEvent as CloudFlareRequestEvent } from "./request_event_cloudflare.ts";
 import type { Deserializer, KeyRing, Serializer } from "./types.ts";
 import type {
   Addr,
+  CloudflareExecutionContext,
+  CloudflareFetchHandler,
   Destroyable,
   Listener,
   RequestEvent,
@@ -183,6 +186,8 @@ const HTTP_VERBS = [
 ] as const;
 
 const HANDLE_START = "handle start";
+
+let RequestEventCtor: typeof CloudFlareRequestEvent | undefined;
 
 type HTTPVerbs = typeof HTTP_VERBS[number];
 
@@ -1460,6 +1465,40 @@ export class Router extends EventTarget {
     });
     return promise;
   }
+
+  /**
+   * A method that is compatible with the Cloudflare Worker
+   * [Fetch Handler](https://developers.cloudflare.com/workers/runtime-apis/handlers/fetch/)
+   * and can be exported to handle Cloudflare Worker fetch requests.
+   *
+   * @example
+   *
+   * ```ts
+   * import { Router } from "@oak/acorn";
+   *
+   * const router = new Router();
+   * router.get("/", (ctx) => {
+   *   ctx.response.body = "hello world!";
+   * });
+   *
+   * export default { fetch: router.fetch };
+   * ```
+   */
+  fetch: CloudflareFetchHandler = async <
+    Env extends Record<string, string> = Record<string, string>,
+  >(
+    request: Request,
+    env: Env,
+    ctx: CloudflareExecutionContext,
+  ): Promise<Response> => {
+    if (!RequestEventCtor) {
+      RequestEventCtor =
+        (await import("./request_event_cloudflare.ts")).RequestEvent;
+    }
+    const requestEvent = new RequestEventCtor(request, env, ctx);
+    this.#handle(requestEvent);
+    return requestEvent.response;
+  };
 
   /** Open a server to listen for requests and handle them by matching against
    * registered routes.

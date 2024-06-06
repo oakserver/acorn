@@ -1,3 +1,37 @@
+// Copyright 2022-2024 the oak authors. All rights reserved.
+
+export interface CloudflareExecutionContext {
+  waitUntil(promise: Promise<unknown>): void;
+  passThroughOnException(): void;
+}
+
+export interface CloudflareFetchHandler<
+  Env extends Record<string, string> = Record<string, string>,
+> {
+  /** A method that is compatible with the Cloudflare Worker
+   * [Fetch Handler](https://developers.cloudflare.com/workers/runtime-apis/handlers/fetch/)
+   * and can be exported to handle Cloudflare Worker fetch requests.
+   *
+   * # Example
+   *
+   * ```ts
+   * import { Application } from "@oak/oak";
+   *
+   * const app = new Application();
+   * app.use((ctx) => {
+   *   ctx.response.body = "hello world!";
+   * });
+   *
+   * export default { fetch: app.fetch };
+   * ```
+   */
+  (
+    request: Request,
+    env: Env,
+    ctx: CloudflareExecutionContext,
+  ): Promise<Response>;
+}
+
 export interface RequestEvent {
   readonly addr: Addr;
   readonly request: Request;
