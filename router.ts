@@ -60,6 +60,8 @@ import {
   responseFromHttpError,
 } from "./util.ts";
 
+import "./polyfills.ts";
+
 if (!("URLPattern" in globalThis)) {
   await import("npm:urlpattern-polyfill@10.0.0");
 }
