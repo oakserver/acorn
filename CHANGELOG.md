@@ -1,5 +1,12 @@
 # acorn change log
 
+## Version 0.6.0
+
+- chore: add publish workflow (ee5b869)
+- feat: support Node.js (3088469)
+- feat: add ErrorEvent polyfill for Node.js (c5b1819)
+- fix: don't await respond (ac90976)
+
 ## Version 0.5.1
 
 - fix: polyfill URLPattern under Bun (8e21f32)
