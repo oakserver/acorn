@@ -5,13 +5,13 @@
  * @module
  */
 
-import { type Context } from "./context.ts";
+import type { Context } from "./context.ts";
 import { createHttpError, Status, STATUS_TEXT } from "./deps.ts";
-import {
-  type RouteHandler,
-  type RouteOptions,
-  type RouteOptionsWithHandler,
-  type RouteParameters,
+import type {
+  RouteHandler,
+  RouteOptions,
+  RouteOptionsWithHandler,
+  RouteParameters,
 } from "./router.ts";
 import {
   CONTENT_TYPE_HTML,

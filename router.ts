@@ -56,6 +56,7 @@ import {
   isBun,
   isHtmlLike,
   isJsonLike,
+  isNode,
   responseFromHttpError,
 } from "./util.ts";
 
@@ -906,7 +907,7 @@ export class Router extends EventTarget {
     performance.mark(`${HANDLE_START} ${uid}`);
     const { promise, resolve } = Promise.withResolvers<Response>();
     this.#handling.add(promise);
-    requestEvent.respond(promise);
+    await requestEvent.respond(promise);
     promise.then(() => this.#handling.delete(promise)).catch(
       (error) => {
         this.#error(requestEvent.request, error, false);
@@ -1470,6 +1471,8 @@ export class Router extends EventTarget {
       server: _Server = ServerCtor ??
         (ServerCtor = isBun()
           ? (await import("./http_server_bun.ts")).default
+          : isNode()
+          ? (await import("./http_server_node.ts")).default
           : (await import("./http_server_deno.ts")).default),
       signal,
       ...listenOptions

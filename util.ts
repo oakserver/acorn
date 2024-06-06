@@ -36,6 +36,12 @@ export function isBun(): boolean {
   return "Bun" in globalThis;
 }
 
+/** Determines if the runtime is Node.js or not. */
+export function isNode(): boolean {
+  return "process" in globalThis && "global" in globalThis &&
+    !("Bun" in globalThis) && !("WebSocketPair" in globalThis);
+}
+
 const hasPromiseWithResolvers = "withResolvers" in Promise;
 
 /** Offloads to the native `Promise.withResolvers` when available.

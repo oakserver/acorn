@@ -3,7 +3,7 @@
 import {
   ServerSentEvent,
   ServerSentEventStreamTarget,
-} from "jsr:@oak/commons@0.7/server_sent_event";
+} from "jsr:@oak/commons@0.10/server_sent_event";
 
 import { auth, immutable, Router } from "../mod.ts";
 import { assert, createHttpError, Status } from "../deps.ts";

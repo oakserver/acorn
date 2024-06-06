@@ -138,6 +138,8 @@ class RequestEvent implements _RequestEvent {
   }
 }
 
+/** An abstraction for Bun's built in HTTP Server that is used to manage
+ * HTTP requests in a uniform way. */
 export default class Steamer implements Server {
   #controller?: ReadableStreamDefaultController<RequestEvent>;
   #options: Omit<ServeOptions | ServeTlsOptions, "signal">;
@@ -150,8 +152,10 @@ export default class Steamer implements Server {
 
   close(): void | Promise<void> {
     this.#controller?.close();
+    this.#controller = undefined;
     this.#server?.stop();
     this.#server = undefined;
+    this.#stream = undefined;
   }
 
   listen(): Listener | Promise<Listener> {

@@ -1,22 +1,34 @@
 import { pathToRegexp } from "npm:path-to-regexp@6.2.1";
+import { URLPattern as URLPatternPolyfill } from "npm:urlpattern-polyfill@10.0.0";
 
-const urlPattern = new URLPattern("/", "http://localhost/");
+const urlPatternPolyfill = new URLPatternPolyfill("/:id", "http://localhost/");
 
 Deno.bench({
-  name: "URLPattern",
+  name: "URLPattern polyfill",
   fn() {
-    if (urlPattern.test("http://localhost/")) {
+    if (urlPatternPolyfill.exec("http://localhost/1234")) {
       true;
     }
   },
 });
 
-const regexp = pathToRegexp("/");
+const urlPattern = new URLPattern("/:id", "http://localhost/");
+
+Deno.bench({
+  name: "URLPattern",
+  fn() {
+    if (urlPattern.exec("http://localhost/1234")) {
+      true;
+    }
+  },
+});
+
+const regexp = pathToRegexp("/:id");
 
 Deno.bench({
   name: "pathToRegexp",
   fn() {
-    if (regexp.test("/")) {
+    if (regexp.exec("/1234")) {
       true;
     }
   },

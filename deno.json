@@ -1,12 +1,13 @@
 {
   "name": "@oak/acorn",
-  "version": "0.5.1",
+  "version": "0.6.0-alpha.1",
   "exports": {
     ".": "./mod.ts",
     "./context": "./context.ts",
     "./handlers": "./handlers.ts",
     "./http_server_bun": "./http_server_bun.ts",
     "./http_server_deno": "./http_server_deno.ts",
+    "./http_server_node": "./http_server_node.ts",
     "./router": "./router.ts",
     "./types": "./types.ts"
   },
