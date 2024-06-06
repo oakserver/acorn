@@ -175,21 +175,16 @@ export interface RouteOptionsWithHandler<
   handler: RouteHandler<ResponseType, BodyType, Params>;
 }
 
-const HTTP_VERBS = [
-  "DELETE",
-  "GET",
-  "HEAD",
-  "OPTIONS",
-  "PATCH",
-  "POST",
-  "PUT",
-] as const;
-
-const HANDLE_START = "handle start";
-
 let RequestEventCtor: typeof CloudFlareRequestEvent | undefined;
 
-type HTTPVerbs = typeof HTTP_VERBS[number];
+type HTTPVerbs =
+  | "DELETE"
+  | "GET"
+  | "HEAD"
+  | "OPTIONS"
+  | "PATCH"
+  | "POST"
+  | "PUT";
 
 /** A string that represents a range of HTTP response {@linkcode Status} codes:
  *
@@ -302,7 +297,7 @@ export class NotFoundEvent extends Event {
 }
 
 interface HandledEventInit extends EventInit {
-  measure: PerformanceMeasure;
+  duration: number;
   request: Request;
   response: Response;
   route?: Route;
@@ -312,15 +307,15 @@ interface HandledEventInit extends EventInit {
  *
  * This can be used to provide logging and reporting for the router. */
 export class HandledEvent extends Event {
-  #measure: PerformanceMeasure;
+  #duration: number;
   #request: Request;
   #response: Response;
   #route?: Route;
 
-  /** The performance measure from the start of handling the route until it
-   * finished, which can provide timing information about the processing. */
-  get measure(): PerformanceMeasure {
-    return this.#measure;
+  /** Highest resolution timing available on the platform of the time to handle
+   * the request/response by acorn in milliseconds. */
+  get duration(): number {
+    return this.#duration;
   }
 
   /** The {@linkcode Request} that was handled. */
@@ -343,7 +338,7 @@ export class HandledEvent extends Event {
     this.#request = eventInitDict.request;
     this.#response = eventInitDict.response;
     this.#route = eventInitDict.route;
-    this.#measure = eventInitDict.measure;
+    this.#duration = eventInitDict.duration;
   }
 }
 
@@ -910,8 +905,7 @@ export class Router extends EventTarget {
   }
 
   async #handle(requestEvent: RequestEvent): Promise<void> {
-    const uid = this.#uid++;
-    performance.mark(`${HANDLE_START} ${uid}`);
+    const start = performance.now();
     const { promise, resolve } = createPromiseWithResolvers<Response>();
     this.#handling.add(promise);
     requestEvent.respond(promise);
@@ -960,12 +954,9 @@ export class Router extends EventTarget {
                 response,
               );
               resolve(result ?? response);
-              const measure = performance.measure(
-                `handle ${uid}`,
-                `${HANDLE_START} ${uid}`,
-              );
+              const duration = performance.now() - start;
               this.dispatchEvent(
-                new HandledEvent({ request, route, response, measure }),
+                new HandledEvent({ request, route, response, duration }),
               );
               return;
             }
@@ -985,12 +976,9 @@ export class Router extends EventTarget {
             }
             resolve(response);
             this.#handling.delete(promise);
-            const measure = performance.measure(
-              `handle ${uid}`,
-              `${HANDLE_START} ${uid}`,
-            );
+            const duration = performance.now() - start;
             this.dispatchEvent(
-              new HandledEvent({ request, route, response, measure }),
+              new HandledEvent({ request, route, response, duration }),
             );
             return;
           }
@@ -1006,11 +994,8 @@ export class Router extends EventTarget {
       );
       resolve(result ?? response);
       this.#handling.delete(promise);
-      const measure = performance.measure(
-        `handle ${uid}`,
-        `${HANDLE_START} ${uid}`,
-      );
-      this.dispatchEvent(new HandledEvent({ request, response, measure }));
+      const duration = performance.now() - start;
+      this.dispatchEvent(new HandledEvent({ request, response, duration }));
       return;
     }
     let response = await this.#handleStatus(
@@ -1023,11 +1008,8 @@ export class Router extends EventTarget {
     }
     resolve(response);
     this.#handling.delete(promise);
-    const measure = performance.measure(
-      `handle ${uid}`,
-      `${HANDLE_START} ${uid}`,
-    );
-    this.dispatchEvent(new HandledEvent({ request, response, measure }));
+    const duration = performance.now() - start;
+    this.dispatchEvent(new HandledEvent({ request, response, duration }));
   }
 
   #notFound(request: Request): Response {
