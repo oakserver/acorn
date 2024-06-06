@@ -37,12 +37,10 @@ class RequestEvent implements _RequestEvent {
   }
 
   get request(): Request {
-    console.log("read request");
     return this.#request;
   }
 
   get response(): Promise<Response> {
-    console.log("read response");
     return this.#promise;
   }
 
@@ -89,12 +87,10 @@ class RequestEvent implements _RequestEvent {
 
   // deno-lint-ignore no-explicit-any
   error(reason?: any): void {
-    console.log("error", reason);
     this.#reject(reason);
   }
 
   async respond(response: Response | PromiseLike<Response>): Promise<void> {
-    console.log("respond", response);
     if (this.#resolved) {
       throw new Error("Request already responded to.");
     }
@@ -192,7 +188,6 @@ export default class HttpServer implements Server {
       start: (controller) => {
         this.#controller = controller;
         const server = this.#server = createServer((req, res) => {
-          console.log("incoming", req, res);
           controller.enqueue(
             new RequestEvent(req, res, this.#host, this.#address),
           );

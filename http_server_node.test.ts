@@ -23,7 +23,7 @@ Deno.test({
     await server.listen();
     const promise = fetch("http://localhost:8080/");
     for await (const req of server) {
-      req.respond(new Response("hello world"));
+      req.respond(Promise.resolve(new Response("hello world")));
       break;
     }
     const res = await promise;

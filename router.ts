@@ -909,7 +909,7 @@ export class Router extends EventTarget {
     performance.mark(`${HANDLE_START} ${uid}`);
     const { promise, resolve } = Promise.withResolvers<Response>();
     this.#handling.add(promise);
-    await requestEvent.respond(promise);
+    requestEvent.respond(promise);
     promise.then(() => this.#handling.delete(promise)).catch(
       (error) => {
         this.#error(requestEvent.request, error, false);
