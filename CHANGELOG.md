@@ -1,5 +1,9 @@
 # acorn change log
 
+## Version 0.7.1
+
+- docs: improve examples (7a20b7e)
+
 ## Version 0.7.0
 
 - feat: support Cloudflare Workers (2eecd21)
