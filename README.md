@@ -66,8 +66,8 @@ router.listen({ port: 5000 });
 
 ### Fetch handlers
 
-For Cloudflare Workers the router needs to be configured and the router's fetch
-handler needs to be exported:
+For Cloudflare Workers the router needs to be configured and router needs to be
+the default export:
 
 ```ts
 import { Router } from "@oak/acorn";
@@ -84,7 +84,7 @@ router.get("/books/:id", (ctx) => BOOKS[ctx.params.id]);
 
 router.listen({ port: 5000 });
 
-export default { fetch: router.fetch };
+export default router;
 ```
 
 ## Philosophy

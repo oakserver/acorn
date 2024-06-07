@@ -4,13 +4,66 @@
  * Provides a router which specifically tailored for providing RESTful
  * endpoints.
  *
- * ## Using with Deno
+ * acorn works across [Deno runtime](https://deno.com/),
+ * [Deno Deploy](https://deno.com/deploy), [Node.js](https://nodejs.org/),
+ * [Bun](https://bun.sh/),
+ * and [Cloudflare Workers](https://workers.cloudflare.com/).
  *
- * You need to reference the `@oak/acorn` package in code:
+ * ## Installing
  *
- * @example
+ * @example Installing with Deno
+ *
+ * Add acorn to your project:
+ *
+ * ```
+ * deno add @oak/acorn
+ * ```
+ *
+ * @example Installing with Node.js or Cloudflare Workers
+ *
+ * Add acorn to your project with your preferred project manager.
+ *
+ * With npm:
+ *
+ * ```
+ * npx jsr add @oak/acorn
+ * ```
+ *
+ * With Yarn:
+ *
+ * ```
+ * yarn dlx jsr add @oak/acorn
+ * ```
+ *
+ * With pnpm:
+ *
+ * ```
+ * pnpm dlx jsr add @oak/acorn
+ * ```
+ *
+ * @example Install with Bun
+ *
+ * Add acorn to your project:
+ *
+ * ```
+ * bunx jsr add @oak/acorn
+ * ```
+ *
+ * ## Usage
+ *
+ * The main way of using acorn is to import the {@linkcode Router} into your
+ * code and configure the router.
+ *
+ * If you are using Deno, Bun, or Node.js, after the router is configured,
+ * invoke `.listen()` to start listening to requests.
+ *
+ * If you are using Cloudflare Workers, export the router as the default export
+ * of the main module.
+ *
+ * @example Using with Deno, Bun and Node.js
+ *
  * ```ts
- * import { Router } from "jsr:@oak/acorn/router";
+ * import { Router } from "@oak/acorn";
  *
  * const router = new Router();
  *
@@ -26,17 +79,8 @@
  * router.listen({ port: 3000 });
  * ```
  *
- * ## Using with Bun
+ * @example Using with Cloudflare Workers
  *
- * You need to install/add the package to your project via:
- *
- * ```
- * bunx jsr add @oak/acorn
- * ```
- *
- * And then you import it into your project:
- *
- * @example
  * ```ts
  * import { Router } from "@oak/acorn/router";
  *
@@ -51,7 +95,7 @@
  *
  * router.get("/books/:id", (ctx) => BOOKS[ctx.params.id]);
  *
- * router.listen({ port: 3000 });
+ * export default router;
  * ```
  *
  * @module
