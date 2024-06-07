@@ -158,6 +158,11 @@ export default class HttpServer implements Server {
 
   async listen(): Promise<Listener> {
     if (!("Request" in globalThis) || !("Response" in globalThis)) {
+      // adding this dependencies because for some reason they are picked up
+      // in undici directly when deploying on CFW, even though they aren't
+      // actually used at runtime
+      await import("npm:buffer@^6.0");
+      await import("npm:string_decoder@^1.3");
       const { Request, Response } = await import("npm:undici@^6.18");
       Object.defineProperties(globalThis, {
         "Request": {
