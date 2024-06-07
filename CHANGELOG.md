@@ -1,5 +1,18 @@
 # acorn change log
 
+## Version 0.7.0
+
+- feat: support Cloudflare Workers (2eecd21)
+- feat: include duration in handled event (b6cbe17)
+
+  **BREAKING CHANGE** Previously the `HandledEvent` contained the performance
+  measurement of the handling of the route. It now only contains a `duration`
+  property which represents in milliseconds how long it took to handle the
+  request.
+
+- fix: use `createPromiseWithResolvers()` (b6023f8)
+- fix: add dynamic npm imports (acc5756)
+
 ## Version 0.6.0
 
 - chore: add publish workflow (ee5b869)
