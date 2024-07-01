@@ -1,1649 +1,1728 @@
-// Copyright 2022-2024 the oak authors. All rights reserved.
+// Copyright 2018-2024 the oak authors. All rights reserved.
 
 /**
- * The router for acorn, which is the foundational part of the framework.
- *
- * @example
- * ```ts
- * import { Router } from "jsr:@oak/acorn/router";
- *
- * const router = new Router();
- *
- * router.get("/", () => ({ hello: "world" }));
- *
- * const BOOKS = {
- *   "1": { title: "The Hound of the Baskervilles" },
- *   "2": { title: "It" },
- * };
- *
- * router.get("/books/:id", (ctx) => BOOKS[ctx.params.id]);
- *
- * router.listen({ port: 3000 });
- * ```
+ * The main module of acorn that contains the core {@linkcode Router} which
+ * is focused on creating servers for handling RESTful type services.
  *
  * @module
  */
 
-import { Context } from "./context.ts";
+import { dispose, getLogger, type Logger } from "@logtape/logtape";
+import type { KeyRing } from "@oak/commons/cookie_map";
+import { createHttpError, isHttpError } from "@oak/commons/http_errors";
+import type { HttpMethod } from "@oak/commons/method";
+import { Status } from "@oak/commons/status";
+import { assert } from "@std/assert/assert";
+import type { InferOutput } from "@valibot/valibot";
+
+import { configureLogger, type LoggerOptions } from "./logger.ts";
+import type { CloudflareWorkerRequestEvent } from "./request_event_cfw.ts";
+import { PathRoute, type RouteHandler, type RouteOptions } from "./route.ts";
 import {
-  assert,
-  createHttpError,
-  isClientErrorStatus,
-  isErrorStatus,
-  isHttpError,
-  isInformationalStatus,
-  isRedirectStatus,
-  isServerErrorStatus,
-  isSuccessfulStatus,
-  SecureCookieMap,
-  Status,
-} from "./deps.ts";
-import type { RequestEvent as CloudFlareRequestEvent } from "./request_event_cloudflare.ts";
-import type { Deserializer, KeyRing, Serializer } from "./types.ts";
+  type StatusHandler,
+  type StatusRange,
+  StatusRoute,
+  type StatusRouteDescriptor,
+  type StatusRouteInit,
+} from "./status_route.ts";
 import type {
   Addr,
   CloudflareExecutionContext,
   CloudflareFetchHandler,
-  Destroyable,
-  Listener,
+  ParamsDictionary,
+  QueryParamsDictionary,
+  Removeable,
   RequestEvent,
-  Server as _Server,
-  ServerConstructor,
-} from "./types_internal.ts";
-import {
-  CONTENT_TYPE_HTML,
-  CONTENT_TYPE_JSON,
-  CONTENT_TYPE_TEXT,
-  createPromiseWithResolvers,
-  isBodyInit,
-  isBun,
-  isHtmlLike,
-  isJsonLike,
-  isNode,
-  responseFromHttpError,
-} from "./util.ts";
+  RequestServerConstructor,
+  Route,
+  RouteParameters,
+  TlsOptions,
+} from "./types.ts";
+import { isBun, isNode } from "./utils.ts";
+import type {
+  BodySchema,
+  QueryStringSchema,
+  SchemaDescriptor,
+} from "./schema.ts";
 
-import "./polyfills.ts";
-
-if (!("URLPattern" in globalThis)) {
-  await import("npm:urlpattern-polyfill@10.0.0");
+export interface RouteDescriptor<
+  Path extends string,
+  Env extends Record<string, string> = Record<string, string>,
+  Params extends ParamsDictionary | undefined = ParamsDictionary,
+  QSSchema extends QueryStringSchema = QueryStringSchema,
+  QueryParams extends InferOutput<QSSchema> = QueryParamsDictionary,
+  BSchema extends BodySchema = BodySchema,
+  RequestBody = InferOutput<BSchema>,
+  ResSchema extends BodySchema = BodySchema,
+  ResponseBody = InferOutput<ResSchema>,
+> extends
+  RouteInitWithHandler<
+    Env,
+    Params,
+    QSSchema,
+    QueryParams,
+    BSchema,
+    RequestBody,
+    ResSchema,
+    ResponseBody
+  > {
+  path: Path;
 }
 
-/** Valid return values from a route handler. */
-export type RouteResponse<Type> = Response | BodyInit | Type;
-
-type ParamsDictionary = Record<string, string>;
-
-type RemoveTail<S extends string, Tail extends string> = S extends
-  `${infer P}${Tail}` ? P : S;
-
-type GetRouteParameter<S extends string> = RemoveTail<
-  RemoveTail<RemoveTail<S, `/${string}`>, `-${string}`>,
-  `.${string}`
->;
-
-/** The type alias to help infer what the route parameters are for a route based
- * on the route string. */
-export type RouteParameters<Route extends string> = string extends Route
-  ? ParamsDictionary
-  : Route extends `${string}(${string}` ? ParamsDictionary
-  : Route extends `${string}:${infer Rest}` ?
-      & (
-        GetRouteParameter<Rest> extends never ? ParamsDictionary
-          : GetRouteParameter<Rest> extends `${infer ParamName}?`
-            ? { [P in ParamName]?: string }
-          : { [P in GetRouteParameter<Rest>]: string }
-      )
-      & (Rest extends `${GetRouteParameter<Rest>}${infer Next}`
-        ? RouteParameters<Next>
-        : unknown)
-  : ParamsDictionary;
-
-/** The interface for route handlers, which are provided via a context
- * argument. The route handler is expected to return a
- * {@linkcode RouteResponse} or `undefined` if it cannot handle the request,
- * which will typically result in a 404 being returned to the client. */
-export interface RouteHandler<
-  ResponseType,
-  BodyType = unknown,
-  Params extends Record<string, string> = Record<string, string>,
-> {
-  (
-    context: Context<BodyType, Params>,
-  ):
-    | Promise<RouteResponse<ResponseType> | undefined>
-    | RouteResponse<ResponseType>
-    | undefined;
+export interface RouteDescriptorWithMethod<
+  Path extends string,
+  Env extends Record<string, string> = Record<string, string>,
+  Params extends ParamsDictionary | undefined = ParamsDictionary,
+  QSSchema extends QueryStringSchema = QueryStringSchema,
+  QueryParams extends InferOutput<QSSchema> = QueryParamsDictionary,
+  BSchema extends BodySchema = BodySchema,
+  RequestBody = InferOutput<BSchema>,
+  ResSchema extends BodySchema = BodySchema,
+  ResponseBody = InferOutput<ResSchema>,
+> extends
+  RouteDescriptor<
+    Path,
+    Env,
+    Params,
+    QSSchema,
+    QueryParams,
+    BSchema,
+    RequestBody,
+    ResSchema,
+    ResponseBody
+  > {
+  method: HttpMethod[] | HttpMethod;
 }
 
 /**
- * The interface too status handlers, which are registered on the
- * {@linkcode Router} via the `.on()` method and intended for being notified of
- * certain state changes related to routing requests.
+ * Options which can be provided when creating a route.
  */
-export interface StatusHandler<S extends Status> {
-  (
-    context: Context<unknown, Record<string, string>>,
-    status: S,
-    response?: Response,
-  ):
-    | Promise<RouteResponse<unknown> | undefined>
-    | RouteResponse<unknown>
-    | undefined;
-}
-
-/** An error handler is tied to a specific route and can implement custom logic
- * to deal with an error that occurred when processing the route. */
-interface ErrorHandler {
-  (
-    request: Request,
-    error: unknown,
-  ): Response | undefined | Promise<Response | undefined>;
-}
-
-/** Options that can be specified when adding a route to the router. */
-export interface RouteOptions<
-  R extends string,
-  BodyType,
-  Params extends RouteParameters<R>,
+export interface RouteInit<
+  QSSchema extends QueryStringSchema,
+  BSchema extends BodySchema,
+  ResSchema extends BodySchema,
 > {
-  /** An optional deserializer to use when decoding the body. This can be used
-   * to validate the body of the request or hydrate an object. */
-  deserializer?: Deserializer<BodyType, Params>;
-
-  /** An error handler which is specific to this route, which will be called
-   * when there is an error thrown when trying to process the route. */
-  errorHandler?: ErrorHandler;
-
-  /** The serializer is used to serialize a return value of the route handler,
-   * when the value is not a {@linkcode Response} or {@linkcode BodyInit}. The
-   * optional `.stringify()` method of the serializer is expected to return a
-   * JSON string representation of the body returned from the handler, where as
-   * the `.toResponse()` method is expected to return a full
-   * {@linkcode Response} object. */
-  serializer?: Serializer<Params>;
+  /**
+   * The schema to be used for validating the query string, the request body,
+   * and the response body.
+   */
+  schema?: SchemaDescriptor<QSSchema, BSchema, ResSchema> | undefined;
 }
 
-/** An interface of route options which also includes the handler, intended to
- * make it easy to provide a single object to register a route. */
-export interface RouteOptionsWithHandler<
-  R extends string,
-  BodyType,
-  Params extends RouteParameters<R>,
-  ResponseType,
-> extends RouteOptions<R, BodyType, Params> {
-  handler: RouteHandler<ResponseType, BodyType, Params>;
-}
-
-let RequestEventCtor: typeof CloudFlareRequestEvent | undefined;
-
-type HTTPVerbs =
-  | "DELETE"
-  | "GET"
-  | "HEAD"
-  | "OPTIONS"
-  | "PATCH"
-  | "POST"
-  | "PUT";
-
-/** A string that represents a range of HTTP response {@linkcode Status} codes:
- *
- * - `"*"` - matches any status code
- * - `"info"` - matches information status codes (`100`-`199`)
- * - `"success"` - matches successful status codes (`200`-`299`)
- * - `"redirect"` - matches redirection status codes (`300`-`399`)
- * - `"client-error"` - matches client error status codes (`400`-`499`)
- * - `"server-error"` - matches server error status codes (`500`-`599`)
- * - `"error"` - matches any error status code (`400`-`599`)
+/**
+ * Options which can be provided when creating a route that also include the
+ * handler.
  */
-export type StatusRange =
-  | "*"
-  | "info"
-  | "success"
-  | "redirect"
-  | "client-error"
-  | "server-error"
-  | "error";
-
-/** A {@linkcode Status} code or a shorthand {@linkcode StatusRange} string. */
-export type StatusAndRanges = Status | StatusRange;
-
-interface NotFoundEventListener {
-  (evt: NotFoundEvent): void | Promise<void>;
+export interface RouteInitWithHandler<
+  Env extends Record<string, string> = Record<string, string>,
+  Params extends ParamsDictionary | undefined = ParamsDictionary,
+  QSSchema extends QueryStringSchema = QueryStringSchema,
+  QueryParams extends InferOutput<QSSchema> = QueryParamsDictionary,
+  BSchema extends BodySchema = BodySchema,
+  RequestBody = InferOutput<BSchema>,
+  ResSchema extends BodySchema = BodySchema,
+  ResponseBody = InferOutput<ResSchema>,
+> extends RouteInit<QSSchema, BSchema, ResSchema> {
+  /**
+   * The handler function which will be called when the route is matched.
+   */
+  handler: RouteHandler<
+    Env,
+    Params,
+    QSSchema,
+    QueryParams,
+    BSchema,
+    RequestBody,
+    ResSchema,
+    ResponseBody
+  >;
 }
 
-interface NotFoundListenerObject {
-  handleEvent(evt: NotFoundEvent): void | Promise<void>;
-}
-
-type NotFoundEventListenerOrEventListenerObject =
-  | NotFoundEventListener
-  | NotFoundListenerObject;
-
-interface HandledEventListener {
-  (evt: HandledEvent): void | Promise<void>;
-}
-
-interface HandledEventListenerObject {
-  handleEvent(evt: HandledEvent): void | Promise<void>;
-}
-
-type HandledEventListenerOrEventListenerObject =
-  | HandledEventListener
-  | HandledEventListenerObject;
-
-interface RouterErrorEventListener {
-  (evt: RouterErrorEvent): void | Promise<void>;
-}
-
-interface RouterErrorEventListenerObject {
-  handleEvent(evt: RouterErrorEvent): void | Promise<void>;
-}
-
-type RouterErrorEventListenerOrEventListenerObject =
-  | RouterErrorEventListener
-  | RouterErrorEventListenerObject;
-
-interface RouterListenEventListener {
-  (evt: RouterListenEvent): void | Promise<void>;
-}
-
-interface RouterListenEventListenerObject {
-  handleEvent(evt: RouterListenEvent): void | Promise<void>;
-}
-
-type RouterListenEventListenerOrEventListenerObject =
-  | RouterListenEventListener
-  | RouterListenEventListenerObject;
-
-interface RouterRequestEventListener {
-  (evt: RouterRequestEvent): void | Promise<void>;
-}
-
-interface RouterRequestEventListenerObject {
-  handleEvent(evt: RouterRequestEvent): void | Promise<void>;
-}
-
-type RouterRequestListenerOrEventListenerObject =
-  | RouterRequestEventListener
-  | RouterRequestEventListenerObject;
-
-interface NotFoundEventInit extends EventInit {
-  request: Request;
-}
-
-/** A DOM like event that is emitted from the router when any request did not
- * match any routes.
- *
- * Setting the `.response` property will cause the default response to be
- * overridden. */
-export class NotFoundEvent extends Event {
-  #request: Request;
-
-  /** The original {@linkcode Request} associated with the event. */
-  get request(): Request {
-    return this.#request;
-  }
-
-  /** If the event listener whishes to issue a specific response to the event,
-   * then it should set the value here to a {@linkcode Response} and the router
-   * will use it to respond. */
-  response?: Response;
-
-  constructor(eventInitDict: NotFoundEventInit) {
-    super("notfound", eventInitDict);
-    this.#request = eventInitDict.request;
-  }
-}
-
-interface HandledEventInit extends EventInit {
-  duration: number;
-  request: Request;
-  response: Response;
-  route?: Route;
-}
-
-/** A DOM like event emitted by the router when a request has been handled.
- *
- * This can be used to provide logging and reporting for the router. */
-export class HandledEvent extends Event {
-  #duration: number;
-  #request: Request;
-  #response: Response;
-  #route?: Route;
-
-  /** Highest resolution timing available on the platform of the time to handle
-   * the request/response by acorn in milliseconds. */
-  get duration(): number {
-    return this.#duration;
-  }
-
-  /** The {@linkcode Request} that was handled. */
-  get request(): Request {
-    return this.#request;
-  }
-
-  /** The {@linkcode Response} that was handled. */
-  get response(): Response {
-    return this.#response;
-  }
-
-  /** The {@linkcode Route} that was matched. */
-  get route(): Route | undefined {
-    return this.#route;
-  }
-
-  constructor(eventInitDict: HandledEventInit) {
-    super("handled", eventInitDict);
-    this.#request = eventInitDict.request;
-    this.#response = eventInitDict.response;
-    this.#route = eventInitDict.route;
-    this.#duration = eventInitDict.duration;
-  }
-}
-
-interface RouterErrorEventInit extends ErrorEventInit {
-  request?: Request;
-  respondable?: boolean;
-  route?: Route;
-}
-
-/** Error events from the router will be of this type, which provides additional
- * context about the error and provides a way to override the default behaviors
- * of the router. */
-export class RouterErrorEvent extends ErrorEvent {
-  #request?: Request;
-  #respondable: boolean;
-  #route?: Route;
-
-  /** The original {@linkcode Request} object. */
-  get request(): Request | undefined {
-    return this.#request;
-  }
-
-  /** To provide a custom response to an error event set a {@linkcode Response}
-   * to this property and it will be used instead of the built in default.
+/**
+ * Details provided an `onError` hook.
+ */
+export interface ErrorDetails<
+  Env extends Record<string, string> = Record<string, string>,
+> {
+  /**
+   * The error message which was generated.
+   */
+  message: string;
+  /**
+   * The cause of the error. This is typically an `Error` instance, but can be
+   * any value.
+   */
+  cause: unknown;
+  /**
+   * The request event which was being processed when the error occurred.
    *
-   * The `.respondable` property will indicate if a response to the client is
-   * possible or not.
+   * If the error occurs outside of handling a request, this will be
+   * `undefined`.
+   */
+  requestEvent?: RequestEvent<Env>;
+  /**
+   * If the error occurred before a response was returned to the client, this
+   * will be `true`. This indicates that the error hook can return a response
+   * which will be sent to the client instead of the default response.
+   */
+  respondable?: boolean;
+  /**
+   * If a route was matched, this will be the route that was matched.
+   */
+  route?: Route;
+}
+
+/**
+ * Details provided to an `onHandled` hook.
+ */
+export interface HandledDetails<
+  Env extends Record<string, string> = Record<string, string>,
+> {
+  /**
+   * The duration in milliseconds that it took to handle the request.
+   *
+   * acorn attempts to use high precision timing to determine the duration, but
+   * this is runtime dependent. If it is high precision timing, the number will
+   * be a float.
+   */
+  duration: number;
+  /**
+   * The request event which was processed.
+   */
+  requestEvent: RequestEvent<Env>;
+  /**
+   * The response which is being returned to the client.
+   */
+  response: Response;
+  /**
+   * If a route was matched, this will be the route that was matched.
+   */
+  route?: Route;
+}
+
+/**
+ * Options which can be specified when listening for requests.
+ */
+export interface ListenOptions {
+  /**
+   * The server constructor to use when listening for requests. This is not
+   * commonly used, but can be used to provide a custom server implementation.
+   *
+   * When not provided, the default server constructor for the detected
+   * runtime will be used.
+   */
+  server?: RequestServerConstructor;
+  /**
+   * The port to listen on.
+   */
+  port?: number;
+  /**
+   * The hostname to listen on.
+   */
+  hostname?: string;
+  /**
+   * Determines if the server should be considered to be listening securely,
+   * irrespective of the TLS configuration.
+   *
+   * Typically if there is a TLS configuration, the server is considered to be
+   * listening securely. However, in some cases, like when using Deno Deploy
+   * you don't specify any TLS configuration, but the server is still listening
+   * securely.
+   */
+  secure?: boolean;
+  /**
+   * The signal to use to stop listening for requests. When this signal is
+   * aborted, the server will stop listening for requests and finish processing
+   * any requests that are currently being handled.
+   */
+  signal?: AbortSignal;
+  /**
+   * The TLS configuration to use when listening for requests.
+   */
+  tls?: TlsOptions;
+  /**
+   * A callback which is invoked when the server starts listening for requests.
+   *
+   * The address that the server is listening on is provided.
+   */
+  onListen?(addr: Addr): void;
+}
+
+/**
+ * Details provided to an `onNotFound` hook.
+ */
+export interface NotFoundDetails<
+  Env extends Record<string, string> = Record<string, string>,
+> {
+  /**
+   * The request event which is being processed.
+   */
+  requestEvent: RequestEvent<Env>;
+  /**
+   * The response which is being potentially being returned to the client.
+   * If present this will have a status of `404 Not Found` which was returned
+   * by the handler.
    */
   response?: Response;
-
-  /** Indicates if the error can be responded to. `true` indicates that a
-   * `Response` has not been sent to the client yet, while `false` indicates
-   * that a response cannot be sent. */
-  get respondable(): boolean {
-    return this.#respondable;
-  }
-
-  /** If the error occurred while processing a route, the {@linkcode Route} will
-   * be available on this property. */
-  get route(): Route | undefined {
-    return this.#route;
-  }
-
-  constructor(eventInitDict: RouterErrorEventInit) {
-    super("error", eventInitDict);
-    this.#request = eventInitDict.request;
-    this.#respondable = eventInitDict.respondable ?? false;
-    this.#route = eventInitDict.route;
-  }
+  /**
+   * If a route was matched, this will be the route that was matched. The
+   * not found hook is called when a route is matched and the router handler
+   * returns a response with `404 Not Found` status.
+   */
+  route?: Route;
 }
 
-interface RouterListenEventInit extends EventInit {
-  hostname: string;
-  listener: Listener;
-  port: number;
-  secure: boolean;
-}
-
-/** The event class that is emitted when the router starts listening. */
-export class RouterListenEvent extends Event {
-  #hostname: string;
-  #listener: Listener;
-  #port: number;
-  #secure: boolean;
-
-  /** The hostname that is being listened on. */
-  get hostname(): string {
-    return this.#hostname;
-  }
-
-  /** A reference to the {@linkcode Listener} being listened to. */
-  get listener(): Listener {
-    return this.#listener;
-  }
-
-  /** The port that is being listened on. */
-  get port(): number {
-    return this.#port;
-  }
-
-  /** A flag to indicate if the router believes it is running in a secure
-   * context (e.g. TLS/HTTPS). */
-  get secure(): boolean {
-    return this.#secure;
-  }
-
-  constructor(eventInitDict: RouterListenEventInit) {
-    super("listen", eventInitDict);
-    this.#hostname = eventInitDict.hostname;
-    this.#listener = eventInitDict.listener;
-    this.#port = eventInitDict.port;
-    this.#secure = eventInitDict.secure;
-  }
-}
-
-/** The init for a {@linkcode RouterRequestEvent}. */
-export interface RouterRequestEventInit extends EventInit {
-  /** Any secure cookies associated with the request event. */
-  cookies: SecureCookieMap;
-  /** The {@linkcode Request} associated with the event. */
-  request: Request;
-  /** A link to the response headers object that should be used when
-   * initing a response. */
-  responseHeaders: Headers;
-}
-
-/** An event that is raised when the router is processing an event. If the
- * event's `response` property is set after the event completes its dispatch,
- * then the value will be used to send the response, otherwise the router will
- * attempt to match a route. */
-export class RouterRequestEvent extends Event {
-  #cookies: SecureCookieMap;
-  #request: Request;
-  #responseHeaders: Headers;
-
-  get cookies(): SecureCookieMap {
-    return this.#cookies;
-  }
-
-  get request(): Request {
-    return this.#request;
-  }
-
-  response?: Response;
-
-  get responseHeaders(): Headers {
-    return this.#responseHeaders;
-  }
-
-  constructor(eventInitDict: RouterRequestEventInit) {
-    super("request", eventInitDict);
-    this.#cookies = eventInitDict.cookies;
-    this.#request = eventInitDict.request;
-    this.#responseHeaders = eventInitDict.responseHeaders;
-  }
-}
-
-interface ListenOptionsBase {
-  hostname?: string;
-  port?: number;
-  secure?: boolean;
-  server?: ServerConstructor;
-  signal?: AbortSignal;
-}
-
-interface ListenOptionsSecure extends ListenOptionsBase {
-  /** Server private key in PEM format */
-  key?: string;
-  /** Cert chain in PEM format */
-  cert?: string;
-  /** Application-Layer Protocol Negotiation (ALPN) protocols to announce to
-   * the client. If not specified, no ALPN extension will be included in the
-   * TLS handshake. */
-  alpnProtocols?: string[];
-  secure: true;
-}
-
-type ListenOptions = ListenOptionsBase | ListenOptionsSecure;
-
-interface InternalState {
-  closed: boolean;
-  closing: boolean;
-  server: ServerConstructor;
-}
-
-/** Options which can be used when creating a new router. */
-export interface RouterOptions {
-  /** A key ring which will be used for signing and validating cookies. */
+/**
+ * Options which can be specified when creating an instance of
+ * {@linkcode Router}.
+ *
+ * @template Env a type which allows strongly typing the environment variables
+ * that are made available on the context used within handlers.
+ */
+export interface RouterOptions<
+  Env extends Record<string, string> = Record<string, string>,
+> extends RouteOptions {
+  /**
+   * An optional key ring which is used for signing and verifying cookies, which
+   * helps ensure that the cookie values are resistent to client side tampering.
+   *
+   * When supplied, only verified cookies are made available in the context.
+   */
   keys?: KeyRing;
-  /** When providing internal responses, like on unhandled errors, prefer JSON
-   * responses to HTML responses. When set to `false` HTML will be preferred
-   * when responding, but content type negotiation will still be respected.
-   *  Defaults to `true`. */
+  /**
+   * An optional logger configuration which can be used to configure the
+   * integrated logger. There are three ways to output logs:
+   *
+   * - output logs to the console
+   * - output logs to a file
+   * - output logs to a {@linkcode WritableStream}
+   *
+   * If the value of the option is `true`, logs will be output to the console at
+   * the `"warning"` level. If you provide an object, you can choose the level
+   * and other configuration options for each log sink of `console`, `file`, and
+   * `stream`.
+   *
+   * @default false
+   *
+   * @example Output logs to the console
+   *
+   * ```ts
+   * import { Router } from "@oak/acorn";
+   *
+   * const router = new Router({ logger: true });
+   * ```
+   *
+   * @example Output debug logs to the console
+   *
+   * ```ts
+   * import { Router } from "@oak/acorn";
+   *
+   * const router = new Router({
+   *   logger: {
+   *     console: { level: "debug" },
+   *   },
+   * });
+   * ```
+   *
+   * @example Output logs to a file
+   *
+   * ```ts
+   * import { Router } from "@oak/acorn";
+   *
+   * const router = new Router({
+   *   logger: {
+   *     file: { path: "/path/to/logfile.log" },
+   *   },
+   * });
+   * ```
+   */
+  logger?: boolean | LoggerOptions;
+  /**
+   * An optional handler when an error is encountered by the router.
+   *
+   * If a response has not yet been returned to the client, the handler can
+   * return a {@linkcode Response} which will be sent to the client.
+   *
+   * If there is no handler or if the handler does not return a response, a
+   * default response will be returned to the client.
+   */
+  onError?(
+    details: ErrorDetails<Env>,
+  ): Promise<Response | undefined | void> | Response | undefined | void;
+  /**
+   * A callback which is invoked each time the router completes handling a
+   * request and starts returning a response to the client.
+   *
+   * Details around the request and response are provided. In certain situations
+   * where the response is not finalized, like when upgrading to web sockets or
+   * sending server sent events, the response will not be included in the
+   * details.
+   */
+  onHandled?(details: HandledDetails<Env>): Promise<void> | void;
+  /**
+   * A handler which is invoked each time a router has matched any handlers and
+   * there is no match or the status of a response is currently a _404 Not
+   * Found_. The handler can return a response. If a response is returned, this
+   * will override the default response.
+   *
+   * This handler will be processed before any of the status handlers that
+   * maybe registered with the router.
+   */
+  onNotFound?(
+    details: NotFoundDetails<Env>,
+  ): Promise<Response | undefined | void> | Response | undefined | void;
+  /**
+   * A callback that is each time a request is presented to the router.
+   */
+  onRequest?(requestEvent: RequestEvent<Env>): Promise<void> | void;
+  /**
+   * When there is an uncaught exception thrown during the handling of a
+   * request, the router will pass a request through to an origin server
+   * allowing the service behind the router to handle any unexpected error cases
+   * that arise.
+   *
+   * **Note:** This option is only available when running on Cloudflare Workers.
+   */
+  passThroughOnException?: boolean;
+  /**
+   * When providing default responses like internal server errors or not found
+   * requests, the router uses content negotiation to determine the appropriate
+   * response. This option determines if JSON or HTML will be preferred for
+   * these responses.
+   *
+   * @default true
+   */
   preferJson?: boolean;
 }
 
-function appendHeaders(response: Response, headers: Headers): Response {
-  for (const [key, value] of headers) {
-    response.headers.append(key, value);
-  }
-  return response;
-}
+let CFWRequestEventCtor: typeof CloudflareWorkerRequestEvent | undefined;
 
-class Route<
-  R extends string = string,
-  BodyType = unknown,
-  Params extends RouteParameters<R> = RouteParameters<R>,
-  ResponseType = unknown,
-> {
-  #handler: RouteHandler<unknown, BodyType, Params>;
-  #deserializer?: Deserializer<BodyType, Params>;
-  #destroyHandle: Destroyable;
-  #errorHandler?: ErrorHandler;
-  #params?: Params;
-  #route: R;
-  #serializer?: Serializer<Params>;
-  #urlPattern: URLPattern;
-  #verbs: HTTPVerbs[];
-
-  get route(): R {
-    return this.#route;
-  }
-
-  constructor(
-    verbs: HTTPVerbs[],
-    route: R,
-    handler: RouteHandler<ResponseType, BodyType, Params>,
-    destroyHandle: Destroyable,
-    { deserializer, errorHandler, serializer }: RouteOptions<
-      R,
-      BodyType,
-      Params
-    >,
-  ) {
-    this.#verbs = verbs;
-    this.#route = route;
-    this.#urlPattern = new URLPattern({ pathname: route });
-    this.#handler = handler;
-    this.#deserializer = deserializer;
-    this.#errorHandler = errorHandler;
-    this.#serializer = serializer;
-    this.#destroyHandle = destroyHandle;
-  }
-
-  destroy(): void {
-    this.#destroyHandle.destroy();
-  }
-
-  error(
-    request: Request,
-    error: unknown,
-  ): Response | undefined | Promise<Response | undefined> {
-    if (this.#errorHandler) {
-      return this.#errorHandler(request, error);
-    }
-  }
-
-  async handle(
-    requestEvent: RequestEvent,
-    headers: Headers,
-    secure: boolean,
-    keys?: KeyRing,
-  ): Promise<Response | undefined> {
-    assert(this.#params, "params should have been set in .matches()");
-    const context = new Context<BodyType, Params>(
-      {
-        deserializer: this.#deserializer,
-        headers,
-        keys,
-        params: this.#params,
-        requestEvent,
-        secure,
-      },
-    );
-    const result = await this.#handler(context);
-    if (result instanceof Response) {
-      return appendHeaders(result, headers);
-    }
-    if (isBodyInit(result)) {
-      if (typeof result === "string") {
-        if (isHtmlLike(result)) {
-          headers.set("content-type", CONTENT_TYPE_HTML);
-        } else if (isJsonLike(result)) {
-          headers.set("content-type", CONTENT_TYPE_JSON);
-        } else {
-          headers.set("content-type", CONTENT_TYPE_TEXT);
-        }
-      } else {
-        headers.set("content-type", CONTENT_TYPE_JSON);
-      }
-      return new Response(result, { headers });
-    }
-    if (result) {
-      if (this.#serializer?.toResponse) {
-        return appendHeaders(
-          await this.#serializer.toResponse(
-            result,
-            this.#params,
-            requestEvent.request,
-          ),
-          headers,
-        );
-      } else {
-        headers.set("content-type", CONTENT_TYPE_JSON);
-        return new Response(
-          this.#serializer?.stringify
-            ? await this.#serializer.stringify(result)
-            : JSON.stringify(result),
-          { headers },
-        );
-      }
-    }
-    return undefined;
-  }
-
-  matches(request: Request): boolean {
-    if (this.#verbs.includes(request.method as HTTPVerbs)) {
-      const result = this.#urlPattern.exec(request.url);
-      if (result) {
-        this.#params = result.pathname.groups as Params;
-      }
-      return !!result;
-    }
-    return false;
-  }
-}
-
-class StatusRoute<S extends Status> {
-  #destroyHandle: Destroyable;
-  #handler: StatusHandler<S>;
-  #status: StatusAndRanges[];
-
-  constructor(
-    status: StatusAndRanges[],
-    handler: StatusHandler<S>,
-    destroyHandle: Destroyable,
-  ) {
-    this.#destroyHandle = destroyHandle;
-    this.#handler = handler;
-    this.#status = status;
-  }
-
-  destroy(): void {
-    this.#destroyHandle.destroy();
-  }
-
-  async handle(
-    status: Status,
-    requestEvent: RequestEvent,
-    response: Response | undefined,
-    responseHeaders: Headers,
-    secure: boolean,
-    keys?: KeyRing,
-  ): Promise<Response | undefined> {
-    const headers = response ? new Headers(response.headers) : responseHeaders;
-    const context = new Context({ requestEvent, headers, secure, keys });
-    const result = await this.#handler(context, status as S, response);
-    if (result instanceof Response) {
-      return appendHeaders(result, headers);
-    }
-    if (isBodyInit(result)) {
-      if (typeof result === "string") {
-        if (isHtmlLike(result)) {
-          headers.set("content-type", CONTENT_TYPE_HTML);
-        } else if (isJsonLike(result)) {
-          headers.set("content-type", CONTENT_TYPE_JSON);
-        } else {
-          headers.set("content-type", CONTENT_TYPE_TEXT);
-        }
-      } else {
-        headers.set("content-type", CONTENT_TYPE_JSON);
-      }
-      return new Response(result, { status, headers });
-    }
-    if (result) {
-      headers.set("content-type", CONTENT_TYPE_JSON);
-      return new Response(JSON.stringify(result), { status, headers });
-    }
-    return undefined;
-  }
-
-  matches(status: Status): boolean {
-    for (const item of this.#status) {
-      if (typeof item === "number") {
-        if (status === item) {
-          return true;
-        } else {
-          continue;
-        }
-      }
-      switch (item) {
-        case "*":
-          return true;
-        case "info":
-          if (isInformationalStatus(status)) {
-            return true;
-          }
-          break;
-        case "success":
-          if (isSuccessfulStatus(status)) {
-            return true;
-          }
-          break;
-        case "redirect":
-          if (isRedirectStatus(status)) {
-            return true;
-          }
-          break;
-        case "client-error":
-          if (isClientErrorStatus(status)) {
-            return true;
-          }
-          break;
-        case "server-error":
-          if (isServerErrorStatus(status)) {
-            return true;
-          }
-          break;
-        case "error":
-          if (isErrorStatus(status)) {
-            return true;
-          }
-      }
-    }
-    return false;
-  }
-}
-
-/** Context to be provided when invoking the `.handle()` method on the
- * router. */
-export interface RouterHandleInit {
-  addr: Addr;
-  /** @default {false} */
-  secure?: boolean;
-}
-
-let ServerCtor: ServerConstructor | undefined;
-
-/** A router which is specifically geared for handling RESTful type of requests
- * and providing a straight forward API to respond to them.
+/**
+ * The main class of acorn, which provides the functionality of receiving
+ * requests and routing them to specific handlers.
  *
- * A {@linkcode RouteHandler} is registered with the router, and when a request
- * matches a route the handler will be invoked. The handler will be provided
- * with {@linkcode Context} of the current request. The handler can return a
- * web platform {@linkcode Response} instance, {@linkcode BodyInit} value, or
- * any other object which will be to be serialized to a JSON string as set as
- * the value of the response body.
- *
- * The handler context includes a property named `cookies` which is an instance
- * of {@linkcode Cookies}, which provides an interface for reading request
- * cookies and setting cookies in the response. `Cookies` supports cryptographic
- * signing of keys using a key ring which adheres to the {@linkcode KeyRing}
- * interface, which can be passed as an option when creating the router.
- *
- * The route is specified using the pathname part of the {@linkcode URLPattern}
- * API which supports routes with wildcards (e.g. `/posts/*`) and named groups
- * (e.g. `/books/:id`) which are then provided as `.params` on the context
- * argument to the handler.
- *
- * When registering a route handler, a {@linkcode Deserializer},
- * {@linkcode Serializer}, and {@linkcode ErrorHandler} can all be specified.
- * When a deserializer is specified and a request has a body, the deserializer
- * will be used to parse the body. This is designed to make it possible to
- * validate a body or hydrate an object from a request. When a serializer is
- * specified and the handler returns something other than a `Response` or
- * `BodyInit`, the serializer will be used to serialize the response from the
- * route handler, if present, otherwise
- * [JSON.stringify()](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON/stringify)
- * will be used to convert the body used in the response.
- *
- * Observability of the router is designed using DOM events, where there are
- * several events which can be listened for:
- *
- * - `"error"` - produces a {@linkcode RouterErrorEvent} when an error occurs
- *   when within the router. This can be used to provide a customized response
- *   for errors.
- * - `"listen"` - produces a {@linkcode RouterListenEvent} when the router has
- *   successfully started listening to requests.
- * - `"handled"` - produces a {@linkcode HandledEvent} when the router has
- *   completed handling of a request and has sent the response.
- * - `"notfound"` - produces a {@linkcode NotFoundEvent} when the router was
- *   unable to provide a response for a given request. This can be used to
- *   provide a customized response for not found events.
- *
- * ## Example
+ * @example Simplistic router on Deno/Node.js/Bun
  *
  * ```ts
- * import { Router } from "jsr:@oak/acorn/router";
+ * import { Router } from "@oak/acorn";
  *
  * const router = new Router();
  *
- * router.all("/:id", (ctx) => ({ id: ctx.params.id }));
+ * router.get(() => ({ hello: "world" }));
  *
  * router.listen({ port: 8080 });
  * ```
+ *
+ * @example Simplistic router on Cloudflare Workers
+ *
+ * ```ts
+ * import { Router } from "@oak/acorn";
+ *
+ * const router = new Router();
+ *
+ * router.get(() => ({ hello: "world" }));
+ *
+ * export default router;
+ * ```
+ *
+ * @template Env a type which allows strongly typing the environment variables
+ * that are made available on the context used within handlers.
  */
-export class Router extends EventTarget {
-  #handling: Set<Promise<Response>> = new Set();
+export class Router<
+  Env extends Record<string, string> = Record<string, string>,
+> {
+  #abortController = new AbortController();
+  #handling = new Set<Promise<Response>>();
+  #logger: Logger;
   #keys?: KeyRing;
+  #onError?: (
+    details: ErrorDetails<Env>,
+  ) => Promise<Response | undefined | void> | Response | undefined | void;
+  #onHandled?: (details: HandledDetails<Env>) => Promise<void> | void;
+  #onNotFound?: (
+    details: NotFoundDetails<Env>,
+  ) => Promise<Response | undefined | void> | Response | undefined | void;
+  #onRequest?: (requestEvent: RequestEvent<Env>) => Promise<void> | void;
+  #passThroughOnException?: boolean;
   #preferJson: boolean;
+  #routeOptions: { sensitive?: boolean; strict?: boolean };
   #routes = new Set<Route>();
-  #secure = false;
-  #state?: InternalState;
-  #statusRoutes = new Set<StatusRoute<Status>>();
-  #uid = 0;
+  #statusRoutes = new Set<StatusRoute<Env>>();
 
-  #add<
-    R extends string,
-    BodyType,
-    Params extends RouteParameters<R>,
-    ResponseType,
+  #addRoute<
+    Path extends string,
+    Params extends RouteParameters<Path>,
+    QSSchema extends QueryStringSchema,
+    QueryParams extends InferOutput<QSSchema>,
+    BSchema extends BodySchema = BodySchema,
+    RequestBody = unknown,
+    ResSchema extends BodySchema = BodySchema,
+    ResponseBody = unknown,
   >(
-    verbs: HTTPVerbs[],
-    route: R,
-    handler: RouteHandler<ResponseType, BodyType, Params>,
-    options: RouteOptions<R, BodyType, Params> = {},
-  ): Route<R, BodyType, Params, ResponseType> {
-    const r = new Route(verbs, route, handler, {
-      destroy: () => {
-        this.#routes.delete(r as unknown as Route);
+    methods: HttpMethod[],
+    pathOrDescriptor:
+      | Path
+      | RouteDescriptor<
+        Path,
+        Env,
+        Params,
+        QSSchema,
+        QueryParams,
+        BSchema,
+        RequestBody,
+        ResSchema,
+        ResponseBody
+      >,
+    handlerOrInit?:
+      | RouteHandler<
+        Env,
+        Params,
+        QSSchema,
+        QueryParams,
+        BSchema,
+        RequestBody,
+        ResSchema,
+        ResponseBody
+      >
+      | RouteInitWithHandler<
+        Env,
+        Params,
+        QSSchema,
+        QueryParams,
+        BSchema,
+        RequestBody,
+        ResSchema,
+        ResponseBody
+      >
+      | undefined,
+    init?: RouteInit<QSSchema, BSchema, ResSchema>,
+  ): Removeable {
+    let path: Path;
+    let handler: RouteHandler<
+      Env,
+      Params,
+      QSSchema,
+      QueryParams,
+      BSchema,
+      RequestBody,
+      ResSchema,
+      ResponseBody
+    >;
+    let schemaDescriptor: SchemaDescriptor<QSSchema, BSchema, ResSchema> = {};
+    if (typeof pathOrDescriptor === "string") {
+      path = pathOrDescriptor;
+      assert(handlerOrInit);
+      if (typeof handlerOrInit === "function") {
+        handler = handlerOrInit;
+      } else {
+        assert(!init, "Invalid arguments");
+        const { handler: h, ...i } = handlerOrInit;
+        handler = h;
+        init = i;
+      }
+    } else {
+      assert(!handlerOrInit && !init, "Invalid arguments.");
+      const { path: p, handler: h, ...i } = pathOrDescriptor;
+      path = p;
+      handler = h;
+      init = i;
+    }
+    if (init && init.schema) {
+      schemaDescriptor = init.schema;
+    }
+    const route = new PathRoute<
+      Path,
+      Params,
+      Env,
+      QSSchema,
+      QueryParams,
+      BSchema,
+      RequestBody,
+      ResSchema,
+      ResponseBody
+    >(
+      path,
+      methods,
+      schemaDescriptor,
+      handler,
+      this.#keys,
+      this.#routeOptions,
+    );
+    this.#logger.debug`adding route for ${methods.join(", ")} ${path}`;
+    this.#routes.add(route);
+
+    return {
+      remove: () => {
+        this.#logger.debug`removing route for ${methods.join(", ")} ${path}`;
+        this.#routes.delete(route);
       },
-    }, options);
-    this.#routes.add(r as unknown as Route);
-    return r;
+    };
   }
 
-  #error(
-    request: Request,
-    error: unknown,
-    respondable: boolean,
-  ): Response {
-    const message = error instanceof Error ? error.message : "Internal error";
-    const event = new RouterErrorEvent({
-      request,
-      error,
-      message,
-      respondable,
-    });
-    this.dispatchEvent(event);
-    let response = event.response;
-    if (!response) {
-      if (isHttpError(error)) {
-        response = responseFromHttpError(request, error, this.#preferJson);
+  async #error(
+    message: string,
+    cause: unknown,
+    requestEvent?: RequestEvent<Env>,
+    route?: Route,
+  ) {
+    this.#logger.error`${requestEvent?.id} error handling request: ${message}`;
+    if (this.#onError) {
+      this.#logger.debug`${requestEvent?.id} calling onError for request`;
+      const maybeResponse = await this.#onError({
+        message,
+        cause,
+        requestEvent,
+        respondable: requestEvent && !requestEvent.responded,
+        route,
+      });
+      if (requestEvent && !requestEvent?.responded && maybeResponse) {
+        this.#logger
+          .debug`${requestEvent?.id} responding with onError response for request`;
+        return requestEvent.respond(maybeResponse);
+      }
+    }
+    if (requestEvent && !requestEvent?.responded) {
+      this.#logger
+        .debug`${requestEvent?.id} responding with default response for request`;
+      if (isHttpError(cause)) {
+        return requestEvent.respond(
+          cause.asResponse({
+            request: requestEvent.request,
+            prefer: this.#preferJson ? "json" : "html",
+            headers: {
+              "x-request-id": requestEvent.id,
+            },
+          }),
+        );
       } else {
-        const message = error instanceof Error
-          ? error.message
-          : "Internal error";
-        response = responseFromHttpError(
-          request,
-          createHttpError(Status.InternalServerError, message),
-          this.#preferJson,
+        return requestEvent.respond(
+          createHttpError(
+            Status.InternalServerError,
+            message,
+            { cause },
+          ).asResponse({
+            request: requestEvent.request,
+            prefer: this.#preferJson ? "json" : "html",
+            headers: { "x-request-id": requestEvent.id },
+          }),
         );
       }
     }
-    return response;
+  }
+
+  async #handle(
+    requestEvent: RequestEvent<Env>,
+    secure: boolean,
+  ): Promise<void> {
+    const id = requestEvent.id;
+    this.#logger.info`${id} handling request: ${requestEvent.url.toString()}`;
+    const start = performance.now();
+    let response: Response | undefined | void;
+    let route: Route | undefined;
+    this.#handling.add(requestEvent.response);
+    requestEvent.response.then(() =>
+      this.#handling.delete(requestEvent.response)
+    ).catch((cause) => {
+      this.#logger.error`${id} error deleting handling handle for request`;
+      this.#error("Error deleting handling handle.", cause, requestEvent);
+    });
+    this.#onRequest?.(requestEvent);
+    const responseHeaders = new Headers();
+    if (!requestEvent.responded) {
+      for (route of this.#routes) {
+        if (
+          route.matches(
+            requestEvent.url.pathname,
+            requestEvent.request.method as HttpMethod,
+          )
+        ) {
+          this.#logger.info`${id} request matched`;
+          try {
+            response = await route.handle(
+              requestEvent,
+              responseHeaders,
+              secure,
+            );
+            if (response && !requestEvent.responded) {
+              response = await this.#handleStatus(
+                requestEvent,
+                responseHeaders,
+                response,
+                secure,
+                route,
+              );
+              if (!requestEvent.responded) {
+                await requestEvent.respond(response);
+              }
+            }
+            if (requestEvent.responded) {
+              break;
+            }
+          } catch (cause) {
+            this.#logger.error`${id} error during handling request`;
+            await this.#error(
+              "Error during handling.",
+              cause,
+              requestEvent,
+              route,
+            );
+            if (requestEvent.responded) {
+              break;
+            }
+          }
+        } else {
+          route = undefined;
+        }
+      }
+    }
+    if (!requestEvent.responded) {
+      this.#logger.debug`${id} not found`;
+      response = response ??
+        createHttpError(Status.NotFound, "Not Found").asResponse({
+          prefer: this.#preferJson ? "json" : "html",
+          headers: { "x-request-id": id },
+        }),
+        response = await this.#handleStatus(
+          requestEvent,
+          responseHeaders,
+          response,
+          secure,
+        );
+      requestEvent.respond(response);
+    }
+    const duration = performance.now() - start;
+    if (response) {
+      this.#logger.info`${id} handled in ${parseFloat(duration.toFixed(2))}ms`;
+      this.#onHandled?.({ duration, requestEvent, response, route });
+    } else {
+      this.#logger
+        .debug`${id} responded to outside handle loop in ${
+        parseFloat(duration.toFixed(2))
+      }ms`;
+    }
   }
 
   async #handleStatus(
-    status: Status,
-    requestEvent: RequestEvent,
+    requestEvent: RequestEvent<Env>,
     responseHeaders: Headers,
-    response?: Response,
-  ): Promise<Response | undefined> {
+    response: Response,
+    secure: boolean,
+    route?: Route,
+  ): Promise<Response> {
+    if (response.status === Status.NotFound && this.#onNotFound) {
+      this.#logger.debug`${requestEvent.id} calling onNotFound`;
+      response = await this.#onNotFound?.({ requestEvent, response, route }) ??
+        response;
+    }
+    let result: Response | Promise<Response> = response;
     for (const route of this.#statusRoutes) {
-      if (route.matches(status)) {
-        try {
-          const result = await route.handle(
-            status,
-            requestEvent,
-            response,
-            responseHeaders,
-            this.#secure,
-            this.#keys,
-          );
-          if (result) {
-            response = result;
-          }
-        } catch (error) {
-          return this.#error(requestEvent.request, error, true);
-        }
+      if (route.matches(response)) {
+        this.#logger
+          .debug`${requestEvent.id} matched status route ${route.status}`;
+        result = route.handle(
+          requestEvent,
+          responseHeaders,
+          secure,
+          response,
+        );
       }
     }
-    return response;
+    return result;
   }
 
-  async #handle(requestEvent: RequestEvent): Promise<void> {
-    const start = performance.now();
-    const { promise, resolve } = createPromiseWithResolvers<Response>();
-    this.#handling.add(promise);
-    requestEvent.respond(promise);
-    promise.then(() => this.#handling.delete(promise)).catch(
-      (error) => {
-        this.#error(requestEvent.request, error, false);
-      },
-    );
-    const { request } = requestEvent;
-    const responseHeaders = new Headers();
-    let cookies: SecureCookieMap;
-    try {
-      cookies = new SecureCookieMap(request, {
-        keys: this.#keys,
-        response: responseHeaders,
-        secure: this.#secure,
-      });
-    } catch {
-      // deal with a request dropping before the headers can be read which can
-      // occur under heavy load
-      this.#handling.delete(promise);
-      return;
-    }
-    const routerRequestEvent = new RouterRequestEvent({
-      cookies,
-      request,
-      responseHeaders,
-    });
-    if (
-      this.dispatchEvent(routerRequestEvent) || !routerRequestEvent.response
-    ) {
-      for (const route of this.#routes) {
-        if (route.matches(request)) {
-          try {
-            const response = await route.handle(
-              requestEvent,
-              responseHeaders,
-              this.#secure,
-              this.#keys,
-            );
-            if (response) {
-              const result = await this.#handleStatus(
-                response.status,
-                requestEvent,
-                response.headers,
-                response,
-              );
-              resolve(result ?? response);
-              const duration = performance.now() - start;
-              this.dispatchEvent(
-                new HandledEvent({ request, route, response, duration }),
-              );
-              return;
-            }
-          } catch (error) {
-            let response = await route.error(request, error);
-            const status = isHttpError(error)
-              ? error.status
-              : response?.status ?? Status.InternalServerError;
-            response = await this.#handleStatus(
-              status,
-              requestEvent,
-              responseHeaders,
-              response,
-            );
-            if (!response) {
-              response = this.#error(request, error, true);
-            }
-            resolve(response);
-            this.#handling.delete(promise);
-            const duration = performance.now() - start;
-            this.dispatchEvent(
-              new HandledEvent({ request, route, response, duration }),
-            );
-            return;
-          }
-        }
-      }
-    } else if (routerRequestEvent.response) {
-      const { response } = routerRequestEvent;
-      const result = await this.#handleStatus(
-        response.status,
-        requestEvent,
-        responseHeaders,
-        response,
-      );
-      resolve(result ?? response);
-      this.#handling.delete(promise);
-      const duration = performance.now() - start;
-      this.dispatchEvent(new HandledEvent({ request, response, duration }));
-      return;
-    }
-    let response = await this.#handleStatus(
-      Status.NotFound,
-      requestEvent,
-      responseHeaders,
-    );
-    if (!response) {
-      response = this.#notFound(request);
-    }
-    resolve(response);
-    this.#handling.delete(promise);
-    const duration = performance.now() - start;
-    this.dispatchEvent(new HandledEvent({ request, response, duration }));
-  }
-
-  #notFound(request: Request): Response {
-    const event = new NotFoundEvent({ request });
-    this.dispatchEvent(event);
-    let response = event.response;
-    if (!response) {
-      const message = request.url;
-      response = responseFromHttpError(
-        request,
-        createHttpError(Status.NotFound, message),
-        this.#preferJson,
-      );
-    }
-    return response;
-  }
-
-  constructor(options: RouterOptions = {}) {
-    super();
-    const { keys, preferJson = true } = options;
+  constructor(options: RouterOptions<Env> = {}) {
+    const {
+      keys,
+      onError,
+      onHandled,
+      onNotFound,
+      onRequest,
+      passThroughOnException,
+      preferJson = true,
+      logger,
+      ...routerOptions
+    } = options;
     this.#keys = keys;
+    this.#onError = onError;
+    this.#onHandled = onHandled;
+    this.#onNotFound = onNotFound;
+    this.#onRequest = onRequest;
+    this.#passThroughOnException = passThroughOnException;
     this.#preferJson = preferJson;
-  }
-
-  all<
-    R extends string,
-    Params extends RouteParameters<R>,
-    BodyType,
-    ResponseType,
-  >(
-    route: R,
-    options: RouteOptionsWithHandler<R, BodyType, Params, ResponseType>,
-  ): Destroyable;
-  all<
-    R extends string,
-    Params extends RouteParameters<R>,
-    BodyType,
-    ResponseType,
-  >(
-    route: R,
-    handler: RouteHandler<ResponseType, BodyType, Params>,
-    options?: RouteOptions<R, BodyType, Params>,
-  ): Destroyable;
-  all<Params extends RouteParameters<string>, BodyType, ResponseType>(
-    route: string,
-    handlerOrOptions:
-      | RouteHandler<ResponseType, BodyType, Params>
-      | RouteOptionsWithHandler<string, BodyType, Params, ResponseType>,
-    options?: RouteOptions<string, BodyType, Params>,
-  ): Destroyable;
-  all<
-    R extends string,
-    Params extends RouteParameters<R>,
-    BodyType,
-    ResponseType,
-  >(
-    route: R,
-    handlerOrOptions:
-      | RouteHandler<ResponseType, BodyType, Params>
-      | RouteOptionsWithHandler<R, BodyType, Params, ResponseType>,
-    options?: RouteOptions<R, BodyType, Params>,
-  ): Destroyable {
-    let handler;
-    if (typeof handlerOrOptions === "object") {
-      const { handler: h, ...o } = handlerOrOptions;
-      handler = h;
-      options = o;
-    } else {
-      handler = handlerOrOptions;
+    this.#routeOptions = routerOptions;
+    if (logger) {
+      configureLogger(typeof logger === "object" ? logger : undefined);
     }
-    return this.#add(["DELETE", "GET", "POST", "PUT"], route, handler, options);
-  }
-
-  delete<
-    R extends string,
-    Params extends RouteParameters<R>,
-    BodyType,
-    ResponseType,
-  >(
-    route: R,
-    options: RouteOptionsWithHandler<R, BodyType, Params, ResponseType>,
-  ): Destroyable;
-  delete<
-    R extends string,
-    Params extends RouteParameters<R>,
-    BodyType,
-    ResponseType,
-  >(
-    route: R,
-    handler: RouteHandler<ResponseType, BodyType, Params>,
-    options?: RouteOptions<R, BodyType, Params>,
-  ): Destroyable;
-  delete<Params extends RouteParameters<string>, BodyType, ResponseType>(
-    route: string,
-    handlerOrOptions:
-      | RouteHandler<ResponseType, BodyType, Params>
-      | RouteOptionsWithHandler<string, BodyType, Params, ResponseType>,
-    options?: RouteOptions<string, BodyType, Params>,
-  ): Destroyable;
-  delete<
-    R extends string,
-    Params extends RouteParameters<R>,
-    BodyType,
-    ResponseType,
-  >(
-    route: R,
-    handlerOrOptions:
-      | RouteHandler<ResponseType, BodyType, Params>
-      | RouteOptionsWithHandler<R, BodyType, Params, ResponseType>,
-    options?: RouteOptions<R, BodyType, Params>,
-  ): Destroyable {
-    let handler;
-    if (typeof handlerOrOptions === "object") {
-      const { handler: h, ...o } = handlerOrOptions;
-      handler = h;
-      options = o;
-    } else {
-      handler = handlerOrOptions;
-    }
-    return this.#add(["DELETE"], route, handler, options);
-  }
-
-  get<
-    R extends string,
-    Params extends RouteParameters<R>,
-    BodyType,
-    ResponseType,
-  >(
-    route: R,
-    options: RouteOptionsWithHandler<R, BodyType, Params, ResponseType>,
-  ): Destroyable;
-  get<
-    R extends string,
-    Params extends RouteParameters<R>,
-    BodyType,
-    ResponseType,
-  >(
-    route: R,
-    handler: RouteHandler<ResponseType, BodyType, Params>,
-    options?: RouteOptions<R, BodyType, Params>,
-  ): Destroyable;
-  get<Params extends RouteParameters<string>, BodyType, ResponseType>(
-    route: string,
-    handlerOrOptions:
-      | RouteHandler<ResponseType, BodyType, Params>
-      | RouteOptionsWithHandler<string, BodyType, Params, ResponseType>,
-    options?: RouteOptions<string, BodyType, Params>,
-  ): Destroyable;
-  get<
-    R extends string,
-    Params extends RouteParameters<R>,
-    BodyType,
-    ResponseType,
-  >(
-    route: R,
-    handlerOrOptions:
-      | RouteHandler<ResponseType, BodyType, Params>
-      | RouteOptionsWithHandler<R, BodyType, Params, ResponseType>,
-    options?: RouteOptions<R, BodyType, Params>,
-  ): Destroyable {
-    let handler;
-    if (typeof handlerOrOptions === "object") {
-      const { handler: h, ...o } = handlerOrOptions;
-      handler = h;
-      options = o;
-    } else {
-      handler = handlerOrOptions;
-    }
-    return this.#add(["GET"], route, handler, options);
-  }
-
-  head<
-    R extends string,
-    Params extends RouteParameters<R>,
-    BodyType,
-    ResponseType,
-  >(
-    route: R,
-    options: RouteOptionsWithHandler<R, BodyType, Params, ResponseType>,
-  ): Destroyable;
-  head<
-    R extends string,
-    Params extends RouteParameters<R>,
-    BodyType,
-    ResponseType,
-  >(
-    route: R,
-    handler: RouteHandler<ResponseType, BodyType, Params>,
-    options?: RouteOptions<R, BodyType, Params>,
-  ): Destroyable;
-  head<Params extends RouteParameters<string>, BodyType, ResponseType>(
-    route: string,
-    handlerOrOptions:
-      | RouteHandler<ResponseType, BodyType, Params>
-      | RouteOptionsWithHandler<string, BodyType, Params, ResponseType>,
-    options?: RouteOptions<string, BodyType, Params>,
-  ): Destroyable;
-  head<
-    R extends string,
-    Params extends RouteParameters<R>,
-    BodyType,
-    ResponseType,
-  >(
-    route: R,
-    handlerOrOptions:
-      | RouteHandler<ResponseType, BodyType, Params>
-      | RouteOptionsWithHandler<R, BodyType, Params, ResponseType>,
-    options?: RouteOptions<R, BodyType, Params>,
-  ): Destroyable {
-    let handler;
-    if (typeof handlerOrOptions === "object") {
-      const { handler: h, ...o } = handlerOrOptions;
-      handler = h;
-      options = o;
-    } else {
-      handler = handlerOrOptions;
-    }
-    return this.#add(["HEAD"], route, handler, options);
-  }
-
-  options<
-    R extends string,
-    Params extends RouteParameters<R>,
-    BodyType,
-    ResponseType,
-  >(
-    route: R,
-    options: RouteOptionsWithHandler<R, BodyType, Params, ResponseType>,
-  ): Destroyable;
-  options<
-    R extends string,
-    Params extends RouteParameters<R>,
-    BodyType,
-    ResponseType,
-  >(
-    route: R,
-    handler: RouteHandler<ResponseType, BodyType, Params>,
-    options?: RouteOptions<R, BodyType, Params>,
-  ): Destroyable;
-  options<Params extends RouteParameters<string>, BodyType, ResponseType>(
-    route: string,
-    handlerOrOptions:
-      | RouteHandler<ResponseType, BodyType, Params>
-      | RouteOptionsWithHandler<string, BodyType, Params, ResponseType>,
-    options?: RouteOptions<string, BodyType, Params>,
-  ): Destroyable;
-  options<
-    R extends string,
-    Params extends RouteParameters<R>,
-    BodyType,
-    ResponseType,
-  >(
-    route: R,
-    handlerOrOptions:
-      | RouteHandler<ResponseType, BodyType, Params>
-      | RouteOptionsWithHandler<R, BodyType, Params, ResponseType>,
-    options?: RouteOptions<R, BodyType, Params>,
-  ): Destroyable {
-    let handler;
-    if (typeof handlerOrOptions === "object") {
-      const { handler: h, ...o } = handlerOrOptions;
-      handler = h;
-      options = o;
-    } else {
-      handler = handlerOrOptions;
-    }
-    return this.#add(["OPTIONS"], route, handler, options);
-  }
-
-  patch<
-    R extends string,
-    Params extends RouteParameters<R>,
-    BodyType,
-    ResponseType,
-  >(
-    route: R,
-    options: RouteOptionsWithHandler<R, BodyType, Params, ResponseType>,
-  ): Destroyable;
-  patch<
-    R extends string,
-    Params extends RouteParameters<R>,
-    BodyType,
-    ResponseType,
-  >(
-    route: R,
-    handler: RouteHandler<ResponseType, BodyType, Params>,
-    options?: RouteOptions<R, BodyType, Params>,
-  ): Destroyable;
-  patch<Params extends RouteParameters<string>, BodyType, ResponseType>(
-    route: string,
-    handlerOrOptions:
-      | RouteHandler<ResponseType, BodyType, Params>
-      | RouteOptionsWithHandler<string, BodyType, Params, ResponseType>,
-    options?: RouteOptions<string, BodyType, Params>,
-  ): Destroyable;
-  patch<
-    R extends string,
-    Params extends RouteParameters<R>,
-    BodyType,
-    ResponseType,
-  >(
-    route: R,
-    handlerOrOptions:
-      | RouteHandler<ResponseType, BodyType, Params>
-      | RouteOptionsWithHandler<R, BodyType, Params, ResponseType>,
-    options?: RouteOptions<R, BodyType, Params>,
-  ): Destroyable {
-    let handler;
-    if (typeof handlerOrOptions === "object") {
-      const { handler: h, ...o } = handlerOrOptions;
-      handler = h;
-      options = o;
-    } else {
-      handler = handlerOrOptions;
-    }
-    return this.#add(["PATCH"], route, handler, options);
-  }
-
-  post<
-    R extends string,
-    Params extends RouteParameters<R>,
-    BodyType,
-    ResponseType,
-  >(
-    route: R,
-    options: RouteOptionsWithHandler<R, BodyType, Params, ResponseType>,
-  ): Destroyable;
-  post<
-    R extends string,
-    Params extends RouteParameters<R>,
-    BodyType,
-    ResponseType,
-  >(
-    route: R,
-    handler: RouteHandler<ResponseType, BodyType, Params>,
-    options?: RouteOptions<R, BodyType, Params>,
-  ): Destroyable;
-  post<Params extends RouteParameters<string>, BodyType, ResponseType>(
-    route: string,
-    handlerOrOptions:
-      | RouteHandler<ResponseType, BodyType, Params>
-      | RouteOptionsWithHandler<string, BodyType, Params, ResponseType>,
-    options?: RouteOptions<string, BodyType, Params>,
-  ): Destroyable;
-  post<
-    R extends string,
-    Params extends RouteParameters<R>,
-    BodyType,
-    ResponseType,
-  >(
-    route: R,
-    handlerOrOptions:
-      | RouteHandler<ResponseType, BodyType, Params>
-      | RouteOptionsWithHandler<R, BodyType, Params, ResponseType>,
-    options?: RouteOptions<R, BodyType, Params>,
-  ): Destroyable {
-    let handler;
-    if (typeof handlerOrOptions === "object") {
-      const { handler: h, ...o } = handlerOrOptions;
-      handler = h;
-      options = o;
-    } else {
-      handler = handlerOrOptions;
-    }
-    return this.#add(["POST"], route, handler, options);
-  }
-
-  put<
-    R extends string,
-    Params extends RouteParameters<R>,
-    BodyType,
-    ResponseType,
-  >(
-    route: R,
-    options: RouteOptionsWithHandler<R, BodyType, Params, ResponseType>,
-  ): Destroyable;
-  put<
-    R extends string,
-    Params extends RouteParameters<R>,
-    BodyType,
-    ResponseType,
-  >(
-    route: R,
-    handler: RouteHandler<ResponseType, BodyType, Params>,
-    options?: RouteOptions<R, BodyType, Params>,
-  ): Destroyable;
-  put<Params extends RouteParameters<string>, BodyType, ResponseType>(
-    route: string,
-    handlerOrOptions:
-      | RouteHandler<ResponseType, BodyType, Params>
-      | RouteOptionsWithHandler<string, BodyType, Params, ResponseType>,
-    options?: RouteOptions<string, BodyType, Params>,
-  ): Destroyable;
-  put<
-    R extends string,
-    Params extends RouteParameters<R>,
-    BodyType,
-    ResponseType,
-  >(
-    route: R,
-    handlerOrOptions:
-      | RouteHandler<ResponseType, BodyType, Params>
-      | RouteOptionsWithHandler<R, BodyType, Params, ResponseType>,
-    options?: RouteOptions<R, BodyType, Params>,
-  ): Destroyable {
-    let handler;
-    if (typeof handlerOrOptions === "object") {
-      const { handler: h, ...o } = handlerOrOptions;
-      handler = h;
-      options = o;
-    } else {
-      handler = handlerOrOptions;
-    }
-    return this.#add(["PUT"], route, handler, options);
-  }
-
-  /** Handle an individual request by matching against registered routers.
-   *
-   * This is intended to be used when the router isn't managing opening the
-   * server and listening for requests. */
-  handle(request: Request, init: RouterHandleInit): Promise<Response> {
-    const { promise, resolve, reject } = createPromiseWithResolvers<Response>();
-    this.#secure = init.secure ?? false;
-    this.#handle({
-      get addr() {
-        return init.addr;
-      },
-      request,
-      respond(response) {
-        resolve(response);
-      },
-      error(reason) {
-        reject(reason);
-      },
-    });
-    return promise;
+    this.#logger = getLogger(["acorn", "router"]);
   }
 
   /**
-   * A method that is compatible with the Cloudflare Worker
-   * [Fetch Handler](https://developers.cloudflare.com/workers/runtime-apis/handlers/fetch/)
-   * and can be exported to handle Cloudflare Worker fetch requests.
+   * Define a route based on the provided descriptor.
+   */
+  route<
+    Path extends string,
+    Params extends ParamsDictionary | undefined = RouteParameters<Path>,
+    QSSchema extends QueryStringSchema = QueryStringSchema,
+    QueryParams extends InferOutput<QSSchema> = QueryParamsDictionary,
+    BSchema extends BodySchema = BodySchema,
+    RequestBody = InferOutput<BSchema>,
+    ResSchema extends BodySchema = BodySchema,
+    ResponseBody = InferOutput<ResSchema>,
+  >(
+    descriptor: RouteDescriptorWithMethod<
+      Path,
+      Env,
+      Params,
+      QSSchema,
+      QueryParams,
+      BSchema,
+      RequestBody,
+      ResSchema,
+      ResponseBody
+    >,
+  ): Removeable {
+    const { method, ...routeDescriptor } = descriptor;
+    return this.#addRoute(
+      Array.isArray(method) ? method : [method],
+      // deno-lint-ignore no-explicit-any
+      routeDescriptor as any,
+    );
+  }
+
+  /**
+   * Register a handler provided in the descriptor that will be invoked on when
+   * the specified `.path` is matched along with the common HTTP methods of
+   * `GET`, `HEAD`, `OPTIONS`, `POST`, `PUT`, `PATCH`, and `DELETE`.
+   */
+  all<
+    Path extends string,
+    Params extends ParamsDictionary | undefined = RouteParameters<Path>,
+    QSSchema extends QueryStringSchema = QueryStringSchema,
+    QueryParams extends InferOutput<QSSchema> = QueryParamsDictionary,
+    BSchema extends BodySchema = BodySchema,
+    RequestBody = InferOutput<BSchema>,
+    ResSchema extends BodySchema = BodySchema,
+    ResponseBody = InferOutput<ResSchema>,
+  >(
+    descriptor: RouteDescriptor<
+      Path,
+      Env,
+      Params,
+      QSSchema,
+      QueryParams,
+      BSchema,
+      RequestBody,
+      ResSchema,
+      ResponseBody
+    >,
+  ): Removeable;
+  all<
+    Path extends string,
+    Params extends ParamsDictionary | undefined = RouteParameters<Path>,
+    QSSchema extends QueryStringSchema = QueryStringSchema,
+    QueryParams extends InferOutput<QSSchema> = QueryParamsDictionary,
+    BSchema extends BodySchema = BodySchema,
+    RequestBody = InferOutput<BSchema>,
+    ResSchema extends BodySchema = BodySchema,
+    ResponseBody = InferOutput<ResSchema>,
+  >(
+    path: Path,
+    init: RouteInitWithHandler<
+      Env,
+      Params,
+      QSSchema,
+      QueryParams,
+      BSchema,
+      RequestBody,
+      ResSchema,
+      ResponseBody
+    >,
+  ): Removeable;
+  all<
+    Path extends string,
+    Params extends ParamsDictionary | undefined = RouteParameters<Path>,
+    QSSchema extends QueryStringSchema = QueryStringSchema,
+    QueryParams extends InferOutput<QSSchema> = QueryParamsDictionary,
+    BSchema extends BodySchema = BodySchema,
+    RequestBody = InferOutput<BSchema>,
+    ResSchema extends BodySchema = BodySchema,
+    ResponseBody = InferOutput<ResSchema>,
+  >(
+    path: Path,
+    handler: RouteHandler<
+      Env,
+      Params,
+      QSSchema,
+      QueryParams,
+      BSchema,
+      RequestBody,
+      ResSchema,
+      ResponseBody
+    >,
+    init?: RouteInit<QSSchema, BSchema, ResSchema>,
+  ): Removeable;
+  all<Path extends string>(
+    pathOrDescriptor:
+      | Path
+      | RouteDescriptor<Path>,
+    handlerOrInit?:
+      | RouteHandler<Env>
+      | RouteInitWithHandler<Env>
+      | undefined,
+    init?: RouteInit<QueryStringSchema, BodySchema, BodySchema>,
+  ): Removeable {
+    return this.#addRoute(
+      ["GET", "HEAD", "OPTIONS", "POST", "PUT", "PATCH", "DELETE"],
+      pathOrDescriptor,
+      handlerOrInit,
+      init,
+    );
+  }
+
+  get<
+    Path extends string,
+    Params extends ParamsDictionary | undefined = RouteParameters<Path>,
+    QSSchema extends QueryStringSchema = QueryStringSchema,
+    QueryParams extends InferOutput<QSSchema> = QueryParamsDictionary,
+    ResSchema extends BodySchema = BodySchema,
+    ResponseBody = InferOutput<ResSchema>,
+  >(
+    descriptor: RouteDescriptor<
+      Path,
+      Env,
+      Params,
+      QSSchema,
+      QueryParams,
+      BodySchema,
+      undefined,
+      ResSchema,
+      ResponseBody
+    >,
+  ): Removeable;
+  get<
+    Path extends string,
+    Params extends ParamsDictionary | undefined = RouteParameters<Path>,
+    QSSchema extends QueryStringSchema = QueryStringSchema,
+    QueryParams extends InferOutput<QSSchema> = QueryParamsDictionary,
+    ResSchema extends BodySchema = BodySchema,
+    ResponseBody = InferOutput<ResSchema>,
+  >(
+    path: Path,
+    init: RouteInitWithHandler<
+      Env,
+      Params,
+      QSSchema,
+      QueryParams,
+      BodySchema,
+      undefined,
+      ResSchema,
+      ResponseBody
+    >,
+  ): Removeable;
+  get<
+    Path extends string,
+    Params extends ParamsDictionary | undefined = RouteParameters<Path>,
+    QSSchema extends QueryStringSchema = QueryStringSchema,
+    QueryParams extends InferOutput<QSSchema> = QueryParamsDictionary,
+    ResSchema extends BodySchema = BodySchema,
+    ResponseBody = InferOutput<ResSchema>,
+  >(
+    path: Path,
+    handler: RouteHandler<
+      Env,
+      Params,
+      QSSchema,
+      QueryParams,
+      BodySchema,
+      undefined,
+      ResSchema,
+      ResponseBody
+    >,
+    init?: RouteInit<QSSchema, BodySchema, ResSchema>,
+  ): Removeable;
+  get<Path extends string>(
+    pathOrDescriptor:
+      | Path
+      | RouteDescriptor<Path>,
+    handlerOrInit?:
+      | RouteHandler<
+        Env,
+        RouteParameters<Path>,
+        QueryStringSchema,
+        QueryParamsDictionary,
+        BodySchema,
+        undefined
+      >
+      | RouteInitWithHandler<
+        Env,
+        RouteParameters<Path>,
+        QueryStringSchema,
+        QueryParamsDictionary,
+        BodySchema,
+        undefined
+      >
+      | undefined,
+    init?: RouteInit<QueryStringSchema, BodySchema, BodySchema>,
+  ): Removeable {
+    return this.#addRoute(["GET"], pathOrDescriptor, handlerOrInit, init);
+  }
+
+  head<
+    Path extends string,
+    Params extends ParamsDictionary | undefined = RouteParameters<Path>,
+    QSSchema extends QueryStringSchema = QueryStringSchema,
+    QueryParams extends InferOutput<QSSchema> = QueryParamsDictionary,
+    ResSchema extends BodySchema = BodySchema,
+    ResponseBody = InferOutput<ResSchema>,
+  >(
+    descriptor: RouteDescriptor<
+      Path,
+      Env,
+      Params,
+      QSSchema,
+      QueryParams,
+      BodySchema,
+      undefined,
+      ResSchema,
+      ResponseBody
+    >,
+  ): Removeable;
+  head<
+    Path extends string,
+    Params extends ParamsDictionary | undefined = RouteParameters<Path>,
+    QSSchema extends QueryStringSchema = QueryStringSchema,
+    QueryParams extends InferOutput<QSSchema> = QueryParamsDictionary,
+    ResSchema extends BodySchema = BodySchema,
+    ResponseBody = InferOutput<ResSchema>,
+  >(
+    path: Path,
+    init: RouteInitWithHandler<
+      Env,
+      Params,
+      QSSchema,
+      QueryParams,
+      BodySchema,
+      undefined,
+      ResSchema,
+      ResponseBody
+    >,
+  ): Removeable;
+  head<
+    Path extends string,
+    Params extends ParamsDictionary | undefined = RouteParameters<Path>,
+    QSSchema extends QueryStringSchema = QueryStringSchema,
+    QueryParams extends InferOutput<QSSchema> = QueryParamsDictionary,
+    ResSchema extends BodySchema = BodySchema,
+    ResponseBody = InferOutput<ResSchema>,
+  >(
+    path: Path,
+    handler: RouteHandler<
+      Env,
+      Params,
+      QSSchema,
+      QueryParams,
+      BodySchema,
+      undefined,
+      ResSchema,
+      ResponseBody
+    >,
+    init?: RouteInit<QSSchema, BodySchema, ResSchema>,
+  ): Removeable;
+  head<Path extends string>(
+    pathOrDescriptor:
+      | Path
+      | RouteDescriptor<Path>,
+    handlerOrInit?:
+      | RouteHandler<
+        Env,
+        RouteParameters<Path>,
+        QueryStringSchema,
+        QueryParamsDictionary,
+        BodySchema,
+        undefined
+      >
+      | RouteInitWithHandler<
+        Env,
+        RouteParameters<Path>,
+        QueryStringSchema,
+        QueryParamsDictionary,
+        BodySchema,
+        undefined
+      >
+      | undefined,
+    init?: RouteInit<QueryStringSchema, BodySchema, BodySchema>,
+  ): Removeable {
+    return this.#addRoute(["HEAD"], pathOrDescriptor, handlerOrInit, init);
+  }
+
+  options<
+    Path extends string,
+    Params extends ParamsDictionary | undefined = RouteParameters<Path>,
+    QSSchema extends QueryStringSchema = QueryStringSchema,
+    QueryParams extends InferOutput<QSSchema> = QueryParamsDictionary,
+    BSchema extends BodySchema = BodySchema,
+    RequestBody = InferOutput<BSchema>,
+    ResSchema extends BodySchema = BodySchema,
+    ResponseBody = InferOutput<ResSchema>,
+  >(
+    descriptor: RouteDescriptor<
+      Path,
+      Env,
+      Params,
+      QSSchema,
+      QueryParams,
+      BSchema,
+      RequestBody,
+      ResSchema,
+      ResponseBody
+    >,
+  ): Removeable;
+  options<
+    Path extends string,
+    Params extends ParamsDictionary | undefined = RouteParameters<Path>,
+    QSSchema extends QueryStringSchema = QueryStringSchema,
+    QueryParams extends InferOutput<QSSchema> = QueryParamsDictionary,
+    BSchema extends BodySchema = BodySchema,
+    RequestBody = InferOutput<BSchema>,
+    ResSchema extends BodySchema = BodySchema,
+    ResponseBody = InferOutput<ResSchema>,
+  >(
+    path: Path,
+    init: RouteInitWithHandler<
+      Env,
+      Params,
+      QSSchema,
+      QueryParams,
+      BSchema,
+      RequestBody,
+      ResSchema,
+      ResponseBody
+    >,
+  ): Removeable;
+  options<
+    Path extends string,
+    Params extends ParamsDictionary | undefined = RouteParameters<Path>,
+    QSSchema extends QueryStringSchema = QueryStringSchema,
+    QueryParams extends InferOutput<QSSchema> = QueryParamsDictionary,
+    BSchema extends BodySchema = BodySchema,
+    RequestBody = InferOutput<BSchema>,
+    ResSchema extends BodySchema = BodySchema,
+    ResponseBody = InferOutput<ResSchema>,
+  >(
+    path: Path,
+    handler: RouteHandler<
+      Env,
+      Params,
+      QSSchema,
+      QueryParams,
+      BSchema,
+      RequestBody,
+      ResSchema,
+      ResponseBody
+    >,
+    init?: RouteInit<QSSchema, BodySchema, ResSchema>,
+  ): Removeable;
+  options<Path extends string>(
+    pathOrDescriptor:
+      | Path
+      | RouteDescriptor<Path>,
+    handlerOrInit?:
+      | RouteHandler<
+        Env,
+        RouteParameters<Path>,
+        QueryStringSchema,
+        QueryParamsDictionary,
+        BodySchema,
+        unknown
+      >
+      | RouteInitWithHandler<
+        Env,
+        RouteParameters<Path>,
+        QueryStringSchema,
+        QueryParamsDictionary,
+        BodySchema,
+        unknown
+      >
+      | undefined,
+    init?: RouteInit<QueryStringSchema, BodySchema, BodySchema>,
+  ): Removeable {
+    return this.#addRoute(["PATCH"], pathOrDescriptor, handlerOrInit, init);
+  }
+
+  post<
+    Path extends string,
+    Params extends ParamsDictionary | undefined = RouteParameters<Path>,
+    QSSchema extends QueryStringSchema = QueryStringSchema,
+    QueryParams extends InferOutput<QSSchema> = QueryParamsDictionary,
+    BSchema extends BodySchema = BodySchema,
+    RequestBody = InferOutput<BSchema>,
+    ResSchema extends BodySchema = BodySchema,
+    ResponseBody = InferOutput<ResSchema>,
+  >(
+    descriptor: RouteDescriptor<
+      Path,
+      Env,
+      Params,
+      QSSchema,
+      QueryParams,
+      BSchema,
+      RequestBody,
+      ResSchema,
+      ResponseBody
+    >,
+  ): Removeable;
+  post<
+    Path extends string,
+    Params extends ParamsDictionary | undefined = RouteParameters<Path>,
+    QSSchema extends QueryStringSchema = QueryStringSchema,
+    QueryParams extends InferOutput<QSSchema> = QueryParamsDictionary,
+    BSchema extends BodySchema = BodySchema,
+    RequestBody = InferOutput<BSchema>,
+    ResSchema extends BodySchema = BodySchema,
+    ResponseBody = InferOutput<ResSchema>,
+  >(
+    path: Path,
+    init: RouteInitWithHandler<
+      Env,
+      Params,
+      QSSchema,
+      QueryParams,
+      BSchema,
+      RequestBody,
+      ResSchema,
+      ResponseBody
+    >,
+  ): Removeable;
+  post<
+    Path extends string,
+    Params extends ParamsDictionary | undefined = RouteParameters<Path>,
+    QSSchema extends QueryStringSchema = QueryStringSchema,
+    QueryParams extends InferOutput<QSSchema> = QueryParamsDictionary,
+    BSchema extends BodySchema = BodySchema,
+    RequestBody = InferOutput<BSchema>,
+    ResSchema extends BodySchema = BodySchema,
+    ResponseBody = InferOutput<ResSchema>,
+  >(
+    path: Path,
+    handler: RouteHandler<
+      Env,
+      Params,
+      QSSchema,
+      QueryParams,
+      BSchema,
+      RequestBody,
+      ResSchema,
+      ResponseBody
+    >,
+    init?: RouteInit<QSSchema, BodySchema, ResSchema>,
+  ): Removeable;
+  post<Path extends string>(
+    pathOrDescriptor:
+      | Path
+      | RouteDescriptor<Path>,
+    handlerOrInit?:
+      | RouteHandler<
+        Env,
+        RouteParameters<Path>,
+        QueryStringSchema,
+        QueryParamsDictionary,
+        BodySchema,
+        unknown
+      >
+      | RouteInitWithHandler<
+        Env,
+        RouteParameters<Path>,
+        QueryStringSchema,
+        QueryParamsDictionary,
+        BodySchema,
+        unknown
+      >
+      | undefined,
+    init?: RouteInit<QueryStringSchema, BodySchema, BodySchema>,
+  ): Removeable {
+    return this.#addRoute(["POST"], pathOrDescriptor, handlerOrInit, init);
+  }
+
+  put<
+    Path extends string,
+    Params extends ParamsDictionary | undefined = RouteParameters<Path>,
+    QSSchema extends QueryStringSchema = QueryStringSchema,
+    QueryParams extends InferOutput<QSSchema> = QueryParamsDictionary,
+    BSchema extends BodySchema = BodySchema,
+    RequestBody = InferOutput<BSchema>,
+    ResSchema extends BodySchema = BodySchema,
+    ResponseBody = InferOutput<ResSchema>,
+  >(
+    descriptor: RouteDescriptor<
+      Path,
+      Env,
+      Params,
+      QSSchema,
+      QueryParams,
+      BSchema,
+      RequestBody,
+      ResSchema,
+      ResponseBody
+    >,
+  ): Removeable;
+  put<
+    Path extends string,
+    Params extends ParamsDictionary | undefined = RouteParameters<Path>,
+    QSSchema extends QueryStringSchema = QueryStringSchema,
+    QueryParams extends InferOutput<QSSchema> = QueryParamsDictionary,
+    BSchema extends BodySchema = BodySchema,
+    RequestBody = InferOutput<BSchema>,
+    ResSchema extends BodySchema = BodySchema,
+    ResponseBody = InferOutput<ResSchema>,
+  >(
+    path: Path,
+    init: RouteInitWithHandler<
+      Env,
+      Params,
+      QSSchema,
+      QueryParams,
+      BSchema,
+      RequestBody,
+      ResSchema,
+      ResponseBody
+    >,
+  ): Removeable;
+  put<
+    Path extends string,
+    Params extends ParamsDictionary | undefined = RouteParameters<Path>,
+    QSSchema extends QueryStringSchema = QueryStringSchema,
+    QueryParams extends InferOutput<QSSchema> = QueryParamsDictionary,
+    BSchema extends BodySchema = BodySchema,
+    RequestBody = InferOutput<BSchema>,
+    ResSchema extends BodySchema = BodySchema,
+    ResponseBody = InferOutput<ResSchema>,
+  >(
+    path: Path,
+    handler: RouteHandler<
+      Env,
+      Params,
+      QSSchema,
+      QueryParams,
+      BSchema,
+      RequestBody,
+      ResSchema,
+      ResponseBody
+    >,
+    init?: RouteInit<QSSchema, BodySchema, ResSchema>,
+  ): Removeable;
+  put<Path extends string>(
+    pathOrDescriptor:
+      | Path
+      | RouteDescriptor<Path>,
+    handlerOrInit?:
+      | RouteHandler<
+        Env,
+        RouteParameters<Path>,
+        QueryStringSchema,
+        QueryParamsDictionary,
+        BodySchema,
+        unknown
+      >
+      | RouteInitWithHandler<
+        Env,
+        RouteParameters<Path>,
+        QueryStringSchema,
+        QueryParamsDictionary,
+        BodySchema,
+        unknown
+      >
+      | undefined,
+    init?: RouteInit<QueryStringSchema, BodySchema, BodySchema>,
+  ): Removeable {
+    return this.#addRoute(["PUT"], pathOrDescriptor, handlerOrInit, init);
+  }
+
+  patch<
+    Path extends string,
+    Params extends ParamsDictionary | undefined = RouteParameters<Path>,
+    QSSchema extends QueryStringSchema = QueryStringSchema,
+    QueryParams extends InferOutput<QSSchema> = QueryParamsDictionary,
+    BSchema extends BodySchema = BodySchema,
+    RequestBody = InferOutput<BSchema>,
+    ResSchema extends BodySchema = BodySchema,
+    ResponseBody = InferOutput<ResSchema>,
+  >(
+    descriptor: RouteDescriptor<
+      Path,
+      Env,
+      Params,
+      QSSchema,
+      QueryParams,
+      BSchema,
+      RequestBody,
+      ResSchema,
+      ResponseBody
+    >,
+  ): Removeable;
+  patch<
+    Path extends string,
+    Params extends ParamsDictionary | undefined = RouteParameters<Path>,
+    QSSchema extends QueryStringSchema = QueryStringSchema,
+    QueryParams extends InferOutput<QSSchema> = QueryParamsDictionary,
+    BSchema extends BodySchema = BodySchema,
+    RequestBody = InferOutput<BSchema>,
+    ResSchema extends BodySchema = BodySchema,
+    ResponseBody = InferOutput<ResSchema>,
+  >(
+    path: Path,
+    init: RouteInitWithHandler<
+      Env,
+      Params,
+      QSSchema,
+      QueryParams,
+      BSchema,
+      RequestBody,
+      ResSchema,
+      ResponseBody
+    >,
+  ): Removeable;
+  patch<
+    Path extends string,
+    Params extends ParamsDictionary | undefined = RouteParameters<Path>,
+    QSSchema extends QueryStringSchema = QueryStringSchema,
+    QueryParams extends InferOutput<QSSchema> = QueryParamsDictionary,
+    BSchema extends BodySchema = BodySchema,
+    RequestBody = InferOutput<BSchema>,
+    ResSchema extends BodySchema = BodySchema,
+    ResponseBody = InferOutput<ResSchema>,
+  >(
+    path: Path,
+    handler: RouteHandler<
+      Env,
+      Params,
+      QSSchema,
+      QueryParams,
+      BSchema,
+      RequestBody,
+      ResSchema,
+      ResponseBody
+    >,
+    init?: RouteInit<QSSchema, BodySchema, ResSchema>,
+  ): Removeable;
+  patch<Path extends string>(
+    pathOrDescriptor:
+      | Path
+      | RouteDescriptor<Path>,
+    handlerOrInit?:
+      | RouteHandler<
+        Env,
+        RouteParameters<Path>,
+        QueryStringSchema,
+        QueryParamsDictionary,
+        BodySchema,
+        unknown
+      >
+      | RouteInitWithHandler<
+        Env,
+        RouteParameters<Path>,
+        QueryStringSchema,
+        QueryParamsDictionary,
+        BodySchema,
+        unknown
+      >
+      | undefined,
+    init?: RouteInit<QueryStringSchema, BodySchema, BodySchema>,
+  ): Removeable {
+    return this.#addRoute(["PATCH"], pathOrDescriptor, handlerOrInit, init);
+  }
+
+  delete<
+    Path extends string,
+    Params extends ParamsDictionary | undefined = RouteParameters<Path>,
+    QSSchema extends QueryStringSchema = QueryStringSchema,
+    QueryParams extends InferOutput<QSSchema> = QueryParamsDictionary,
+    BSchema extends BodySchema = BodySchema,
+    RequestBody = InferOutput<BSchema>,
+    ResSchema extends BodySchema = BodySchema,
+    ResponseBody = InferOutput<ResSchema>,
+  >(
+    descriptor: RouteDescriptor<
+      Path,
+      Env,
+      Params,
+      QSSchema,
+      QueryParams,
+      BSchema,
+      RequestBody,
+      ResSchema,
+      ResponseBody
+    >,
+  ): Removeable;
+  delete<
+    Path extends string,
+    Params extends ParamsDictionary | undefined = RouteParameters<Path>,
+    QSSchema extends QueryStringSchema = QueryStringSchema,
+    QueryParams extends InferOutput<QSSchema> = QueryParamsDictionary,
+    BSchema extends BodySchema = BodySchema,
+    RequestBody = InferOutput<BSchema>,
+    ResSchema extends BodySchema = BodySchema,
+    ResponseBody = InferOutput<ResSchema>,
+  >(
+    path: Path,
+    init: RouteInitWithHandler<
+      Env,
+      Params,
+      QSSchema,
+      QueryParams,
+      BSchema,
+      RequestBody,
+      ResSchema,
+      ResponseBody
+    >,
+  ): Removeable;
+  delete<
+    Path extends string,
+    Params extends ParamsDictionary | undefined = RouteParameters<Path>,
+    QSSchema extends QueryStringSchema = QueryStringSchema,
+    QueryParams extends InferOutput<QSSchema> = QueryParamsDictionary,
+    BSchema extends BodySchema = BodySchema,
+    RequestBody = InferOutput<BSchema>,
+    ResSchema extends BodySchema = BodySchema,
+    ResponseBody = InferOutput<ResSchema>,
+  >(
+    path: Path,
+    handler: RouteHandler<
+      Env,
+      Params,
+      QSSchema,
+      QueryParams,
+      BSchema,
+      RequestBody,
+      ResSchema,
+      ResponseBody
+    >,
+    init?: RouteInit<QSSchema, BodySchema, ResSchema>,
+  ): Removeable;
+  delete<Path extends string>(
+    pathOrDescriptor:
+      | Path
+      | RouteDescriptor<Path>,
+    handlerOrInit?:
+      | RouteHandler<
+        Env,
+        RouteParameters<Path>,
+        QueryStringSchema,
+        QueryParamsDictionary,
+        BodySchema,
+        unknown
+      >
+      | RouteInitWithHandler<
+        Env,
+        RouteParameters<Path>,
+        QueryStringSchema,
+        QueryParamsDictionary,
+        BodySchema,
+        unknown
+      >
+      | undefined,
+    init?: RouteInit<QueryStringSchema, BodySchema, BodySchema>,
+  ): Removeable {
+    return this.#addRoute(["PATCH"], pathOrDescriptor, handlerOrInit, init);
+  }
+
+  on<
+    S extends Status = Status,
+    QSSchema extends QueryStringSchema = QueryStringSchema,
+    QueryParams extends InferOutput<QSSchema> = InferOutput<QSSchema>,
+  >(
+    descriptor: StatusRouteDescriptor<S, Env, QSSchema, QueryParams>,
+  ): Removeable;
+  on<
+    S extends Status,
+    QSSchema extends QueryStringSchema = QueryStringSchema,
+    QueryParams extends InferOutput<QSSchema> = InferOutput<QSSchema>,
+  >(
+    status: S | S[],
+    handler: StatusHandler<S, Env, QueryStringSchema, QueryParams>,
+    init?: StatusRouteInit<QSSchema>,
+  ): Removeable;
+  on<
+    QSSchema extends QueryStringSchema = QueryStringSchema,
+    QueryParams extends InferOutput<QSSchema> = InferOutput<QSSchema>,
+  >(
+    statusRange: StatusRange | StatusRange[],
+    handler: StatusHandler<Status, Env, QSSchema, QueryParams>,
+    init?: StatusRouteInit<QSSchema>,
+  ): Removeable;
+  on(
+    statusOrStatusRangeOrDescriptor:
+      | Status
+      | StatusRange
+      | Status[]
+      | StatusRange[]
+      | StatusRouteDescriptor<Status, Env>,
+    handler?: StatusHandler<Status, Env>,
+    init?: StatusRouteInit<QueryStringSchema>,
+  ): Removeable {
+    let status: (Status | StatusRange)[];
+    let schemaDescriptor: SchemaDescriptor<
+      QueryStringSchema,
+      BodySchema,
+      BodySchema
+    > = {};
+    if (!Array.isArray(statusOrStatusRangeOrDescriptor)) {
+      if (typeof statusOrStatusRangeOrDescriptor === "object") {
+        const { status: s, handler: h, schema: sd } =
+          statusOrStatusRangeOrDescriptor;
+        status = Array.isArray(s) ? s : [s];
+        handler = h;
+        schemaDescriptor = sd ?? {};
+      } else {
+        status = [statusOrStatusRangeOrDescriptor];
+      }
+    } else {
+      status = statusOrStatusRangeOrDescriptor;
+    }
+    if (!handler) {
+      throw new TypeError("Handler not provided");
+    }
+    if (init) {
+      schemaDescriptor = init.schema ?? {};
+    }
+    const route = new StatusRoute(
+      status,
+      handler,
+      schemaDescriptor,
+      this.#keys,
+    );
+    this.#logger.debug`adding status route for ${status.join(", ")}`;
+    this.#statusRoutes.add(route);
+    return {
+      remove: () => {
+        this.#logger.debug`removing status route for ${status.join(", ")}`;
+        this.#statusRoutes.delete(route);
+      },
+    };
+  }
+
+  /**
+   * Given a path (the pathname part of a {@linkcode URL}), and a method (the
+   * HTTP method) that a request is being made with, this method will return the
+   * first route that matches the path and method.
    *
-   * @example
+   * This is intended to be used for testing purposes.
+   */
+  match(method: HttpMethod, path: string): Route | undefined {
+    for (const route of this.#routes) {
+      if (route.matches(path, method)) {
+        return route;
+      }
+    }
+  }
+
+  /**
+   * Start listening for requests on the provided port and hostname.
+   */
+  async listen(options: ListenOptions = {}): Promise<void> {
+    const {
+      server: Server = isBun()
+        ? (await import("./request_server_bun.ts")).default
+        : isNode()
+        ? (await import("./request_server_node.ts")).default
+        : (await import("./request_server_deno.ts")).default,
+      port = 0,
+      hostname,
+      tls,
+      signal,
+      secure,
+      onListen,
+    } = options;
+    this.#logger.debug`listen options: ${options}`;
+    signal?.addEventListener("abort", async () => {
+      this.#logger.debug`closing server`;
+      await Promise.all(this.#handling);
+      this.#handling.clear();
+      this.#abortController.abort();
+    });
+    const server = new Server<Env>({
+      port,
+      hostname,
+      tls,
+      signal: this.#abortController.signal,
+    });
+    const addr = await server.listen();
+    this.#logger.info`listening on: ${addr}`;
+    onListen?.(addr);
+    try {
+      for await (const requestEvent of server) {
+        this.#handle(requestEvent, secure ?? !!tls);
+      }
+      await Promise.all(this.#handling);
+    } catch (cause) {
+      this.#error(
+        cause instanceof Error ? cause.message : "Internal error",
+        cause,
+      );
+    }
+  }
+
+  /**
+   * A method that is compatible with the Cloudflare Workers and will handle
+   * fetch requests by the worker.
+   *
+   * The `passThroughOnException` option when creating the router will ensure
+   * that the `ctx.passThroughOnException()` method is called when handling
+   * requests. This will allow the worker to continue to handle requests even if
+   * an exception is thrown during the handling of a request.
+   *
+   * @example Cloudflare Worker fetch handler
+   *
+   * Export the router as a default export which will provide the fetch handler
+   * to Cloudflare:
    *
    * ```ts
    * import { Router } from "@oak/acorn";
    *
    * const router = new Router();
-   * router.get("/", (ctx) => {
-   *   ctx.response.body = "hello world!";
-   * });
+   * router.get("/", () => ({ hello: "world" }));
    *
-   * export default { fetch: router.fetch };
+   * export default router;
    * ```
    */
-  fetch: CloudflareFetchHandler = async <
-    Env extends Record<string, string> = Record<string, string>,
-  >(
+  fetch: CloudflareFetchHandler<Env> = async (
     request: Request,
     env: Env,
     ctx: CloudflareExecutionContext,
   ): Promise<Response> => {
-    if (!RequestEventCtor) {
-      RequestEventCtor =
-        (await import("./request_event_cloudflare.ts")).RequestEvent;
+    if (this.#passThroughOnException) {
+      ctx.passThroughOnException();
     }
-    const requestEvent = new RequestEventCtor(request, env, ctx);
-    this.#handle(requestEvent);
+    if (!CFWRequestEventCtor) {
+      CFWRequestEventCtor =
+        (await import("./request_event_cfw.ts")).CloudflareWorkerRequestEvent;
+    }
+    const requestEvent = new CFWRequestEventCtor(request, env, ctx);
+    try {
+      this.#handle(requestEvent, true);
+    } catch (cause) {
+      this.#logger.error`${requestEvent.id} internal error when handling.`;
+      if (this.#passThroughOnException) {
+        throw cause;
+      }
+      if (!requestEvent.responded) {
+        requestEvent.respond(
+          createHttpError(
+            Status.InternalServerError,
+            "Error thrown while handling.",
+            { cause },
+          ).asResponse({
+            request: requestEvent.request,
+            prefer: this.#preferJson ? "json" : "html",
+            headers: {
+              "x-request-id": requestEvent.id,
+            },
+          }),
+        );
+      }
+    }
+    ctx.waitUntil(dispose());
     return requestEvent.response;
   };
-
-  /** Open a server to listen for requests and handle them by matching against
-   * registered routes.
-   *
-   * The promise returned resolves when the server closes. To close the server
-   * provide an {@linkcode AbortSignal} in the options and when signaled in
-   * flight requests will be processed and the HTTP server closed. */
-  async listen(options: ListenOptions = { port: 0 }): Promise<void> {
-    const {
-      secure = false,
-      server: _Server = ServerCtor ??
-        (ServerCtor = isBun()
-          ? (await import("./http_server_bun.ts")).default
-          : isNode()
-          ? (await import("./http_server_node.ts")).default
-          : (await import("./http_server_deno.ts")).default),
-      signal,
-      ...listenOptions
-    } = options;
-    if (!("port" in listenOptions)) {
-      listenOptions.port = 0;
-    }
-    const server = new _Server(listenOptions);
-    this.#state = {
-      closed: false,
-      closing: false,
-      server: _Server,
-    };
-    this.#secure = secure;
-    if (signal) {
-      signal.addEventListener("abort", async () => {
-        assert(this.#state, "router state should exist");
-        this.#state.closing = true;
-        await Promise.all(this.#handling);
-        this.#handling.clear();
-        await server.close();
-        this.#state.closed = true;
-      });
-    }
-    const listener = await server.listen();
-    const { hostname, port } = listener.addr;
-    this.dispatchEvent(
-      new RouterListenEvent({
-        hostname,
-        listener,
-        port,
-        secure,
-      }),
-    );
-    try {
-      for await (const requestEvent of server) {
-        this.#handle(requestEvent);
-      }
-      await Promise.all(this.#handling);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Internal error";
-      this.dispatchEvent(new RouterErrorEvent({ message, error }));
-    }
-  }
-
-  /** Allows setting a handler that will be called when a response has been
-   * handled, but before any default handling has occurred and before it has
-   * been sent back to the client.
-   *
-   * When the router is ready to form a response and send it to the client,
-   * it will match the status of any handlers, and call them in the order they
-   * were registered. The `status` can either be a {@linkcode Status}, or a
-   * {@linkcode StatusRange} or an array of codes and ranges.
-   *
-   * The handler will receive the current {@linkcode Context} along with the
-   * {@linkcode Status} code and any {@linkcode Response} object that was
-   * created previously. If there is no response, none has yet been created.
-   *
-   * A handler can return a response body, like a route handler can or
-   * {@linkcode BodyInit} or a {@linkcode Response} and that will then become
-   * that basis for a new response. If the handler returns `undefined` the
-   * existing response or the default router response will be used.
-   *
-   * Handlers can be removed by calling `.destroy()` on the returned handle.
-   *
-   * If you are performing logging or metrics on the router, it is better to
-   * use the event listener interfaces for the `"handled"` event, as the
-   * intention of `.on()` is to provide a way to do "post-processing" of
-   * response _or_ provide custom responses for things like `404` or `500`
-   * status responses. */
-  on<S extends Status>(status: S | S[], handler: StatusHandler<S>): Destroyable;
-  /** Allows setting a handler that will be called when a response has been
-   * handled, but before any default handling has occurred and before it has
-   * been sent back to the client.
-   *
-   * When the router is ready to form a response and send it to the client,
-   * it will match the status of any handlers, and call them in the order they
-   * were registered. The `status` can either be a {@linkcode Status}, or a
-   * {@linkcode StatusRange} or an array of codes and ranges.
-   *
-   * The handler will receive the current {@linkcode Context} along with the
-   * {@linkcode Status} code and any {@linkcode Response} object that was
-   * created previously. If there is no response, none has yet been created.
-   *
-   * A handler can return a response body, like a route handler can or
-   * {@linkcode BodyInit} or a {@linkcode Response} and that will then become
-   * that basis for a new response. If the handler returns `undefined` the
-   * existing response or the default router response will be used.
-   *
-   * Handlers can be removed by calling `.destroy()` on the returned handle.
-   *
-   * If you are performing logging or metrics on the router, it is better to
-   * use the event listener interfaces for the `"handled"` event, as the
-   * intention of `.on()` is to provide a way to do "post-processing" of
-   * response _or_ provide custom responses for things like `404` or `500`
-   * status responses. */
-  on(
-    status: StatusRange | StatusRange[],
-    handler: StatusHandler<Status>,
-  ): Destroyable;
-  on(
-    status: StatusAndRanges | StatusAndRanges[],
-    handler: StatusHandler<Status>,
-  ): Destroyable {
-    if (!Array.isArray(status)) {
-      status = [status];
-    }
-    const route = new StatusRoute(status, handler, {
-      destroy: () => {
-        this.#statusRoutes.delete(route);
-      },
-    });
-    this.#statusRoutes.add(route);
-    return route;
-  }
-
-  addEventListener(
-    type: "error",
-    listener: RouterErrorEventListenerOrEventListenerObject | null,
-    options?: boolean | AddEventListenerOptions,
-  ): void;
-  addEventListener(
-    type: "handled",
-    listener: HandledEventListenerOrEventListenerObject | null,
-    options?: boolean | AddEventListenerOptions,
-  ): void;
-  addEventListener(
-    type: "listen",
-    listener: RouterListenEventListenerOrEventListenerObject | null,
-    options?: boolean | AddEventListenerOptions,
-  ): void;
-  addEventListener(
-    type: "notfound",
-    listener: NotFoundEventListenerOrEventListenerObject | null,
-    options?: boolean | AddEventListenerOptions,
-  ): void;
-  addEventListener(
-    type: "request",
-    listener: RouterRequestListenerOrEventListenerObject | null,
-    options?: boolean | AddEventListenerOptions,
-  ): void;
-  addEventListener(
-    type: string,
-    listener: EventListenerOrEventListenerObject | null,
-    options?: boolean | AddEventListenerOptions,
-  ): void {
-    super.addEventListener(type, listener, options);
-  }
 
   [Symbol.for("Deno.customInspect")](
     inspect: (value: unknown) => string,

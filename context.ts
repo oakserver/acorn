@@ -1,184 +1,330 @@
-// Copyright 2022-2024 the oak authors. All rights reserved.
+// Copyright 2018-2024 the oak authors. All rights reserved.
 
 /**
- * Contains the class {@linkcode Context} which provides context for the request
- * and response to the request handler.
+ * The module which contains the {@linkcode Context} class which provides an
+ * interface for working with requests.
+ *
+ * As the router handles requests, it will create a context populated with
+ * information about the request.
  *
  * @module
  */
 
-import { createHttpError, SecureCookieMap, Status, UserAgent } from "./deps.ts";
-import type { Deserializer, KeyRing } from "./types.ts";
+import { getLogger, type Logger } from "@logtape/logtape";
+import { type KeyRing, SecureCookieMap } from "@oak/commons/cookie_map";
+import { createHttpError } from "@oak/commons/http_errors";
+import {
+  ServerSentEventStreamTarget,
+  type ServerSentEventTarget,
+  type ServerSentEventTargetOptions,
+} from "@oak/commons/server_sent_event";
+import { Status } from "@oak/commons/status";
+import { UserAgent } from "@std/http/user-agent";
+import type { InferOutput } from "@valibot/valibot";
+
+import type { BodySchema, QueryStringSchema, Schema } from "./schema.ts";
 import type {
   Addr,
+  ParamsDictionary,
   RequestEvent,
   UpgradeWebSocketOptions,
-} from "./types_internal.ts";
+} from "./types.ts";
+import { appendHeaders } from "./utils.ts";
 
-interface ContextOptions<BodyType, Params extends Record<string, string>> {
-  deserializer?: Deserializer<BodyType, Params>;
-  headers: Headers;
-  keys?: KeyRing;
-  params?: Params;
-  secure?: boolean;
-  requestEvent: RequestEvent;
-}
-
-/** An object that provides context for the associated request and response.
- * This is passed as the first argument to every route handler. */
+/**
+ * Provides an API for understanding information about the request being
+ * processed by the router.
+ *
+ * @template Env a type which allows strongly typing the environment variables
+ * that are made available on the context used within handlers.
+ * @template Params a type which is typically inferred from the route path
+ * selector which represents the shape of route parameters that are parsed
+ * from the route
+ * @template QueryParams a type which represents the shape of query parameters
+ * that are parsed from the search parameters of the request
+ * @template Schema the validation schema which is used to infer the shape of
+ * the request's parsed and validated body
+ * @template RequestBody the shape of the parsed (and potentially validated)
+ * body
+ */
 export class Context<
-  BodyType = unknown,
-  Params extends Record<string, string> = Record<string, string>,
+  Env extends Record<string, string>,
+  Params extends ParamsDictionary | undefined,
+  QSSchema extends QueryStringSchema,
+  QueryParams extends InferOutput<QSSchema>,
+  BSchema extends BodySchema,
+  RequestBody extends InferOutput<BSchema> | undefined,
+  ResSchema extends BodySchema,
 > {
-  #body?: BodyType;
+  #body?: RequestBody;
   #bodySet = false;
   #cookies: SecureCookieMap;
-  #deserializer?: Deserializer<BodyType, Params>;
+  #logger: Logger;
   #params: Params;
-  #requestEvent: RequestEvent;
-  #responded = false;
-  #searchParams?: Record<string, string>;
-  #url?: URL;
-  #userAgent: UserAgent;
+  #queryParams?: QueryParams;
+  #requestEvent: RequestEvent<Env>;
+  #responseHeaders: Headers;
+  #schema: Schema<QSSchema, BSchema, ResSchema>;
+  #url: URL;
+  #userAgent?: UserAgent;
 
-  /** The instance of {@linkcode Cookies} that allows reading and setting of
-   * cookies on the request and response. */
+  /**
+   * The address information of the remote connection making the request as
+   * presented to the server.
+   */
+  get addr(): Addr {
+    return this.#requestEvent.addr;
+  }
+
+  /**
+   * Provides a unified API to get and set cookies related to a request and
+   * response. If the `keys` property has been set when the router was created,
+   * these cookies will be cryptographically signed and verified to prevent
+   * tampering with their value.
+   */
   get cookies(): SecureCookieMap {
     return this.#cookies;
   }
 
-  /** Any {@linkcode Params} that have been parsed out of the URL requested
-   * based on the URL pattern string provided to the `Route`. */
+  /**
+   * Access to the environment variables in a runtime independent way.
+   *
+   * In some runtimes, like Cloudflare Workers, the environment variables are
+   * supplied on each request, where in some cases they are available from the
+   * runtime environment via specific APIs. This always conforms the variables
+   * into a `Record<string, string>` which can be strongly typed when creating
+   * the router instance if desired.
+   */
+  get env(): Env {
+    return this.#requestEvent.env ?? Object.create(null);
+  }
+
+  /**
+   * A globally unique identifier for the request event.
+   *
+   * This can be used for logging and debugging purposes.
+   */
+  get id(): string {
+    return this.#requestEvent.id;
+  }
+
+  /**
+   * The parameters that have been parsed from the path following the syntax
+   * of [path-to-regexp](https://github.com/pillarjs/path-to-regexp).
+   *
+   * @example
+   *
+   * Given the following route path pattern:
+   *
+   * ```
+   * /:foo/:bar
+   * ```
+   *
+   * And the following request path:
+   *
+   * ```
+   * /item/123
+   * ```
+   *
+   * The value of `.params` would be set to:
+   *
+   * ```ts
+   * {
+   *   foo: "item",
+   *   bar: "123",
+   * }
+   * ```
+   */
   get params(): Params {
     return this.#params;
   }
 
-  /** The original {@linkcode Request} associated with this request. */
+  /**
+   * The {@linkcode Request} object associated with the request.
+   */
   get request(): Request {
     return this.#requestEvent.request;
   }
 
   /**
-   * Indicates if the response has already been responded to, like when
-   * upgrading to a websocket.
+   * The parsed form of the {@linkcode Request}'s URL.
    */
-  get responded(): boolean {
-    return this.#responded;
-  }
-
-  /** The address this request. */
-  get addr(): Addr {
-    return this.#requestEvent.addr;
-  }
-
-  /** Any search parameters associated with the request. */
-  get searchParams(): Record<string, string> {
-    if (!this.#searchParams) {
-      this.#searchParams = Object.fromEntries(
-        this.url().searchParams.entries(),
-      );
-    }
-    return this.#searchParams;
+  get url(): URL {
+    return this.#url;
   }
 
   /**
-   * Information about the parsed user agent string associated with the
-   * {@linkcode Request} if available.
-   *
-   * See:
-   * [std/http/user_agent#UserAgent](https://deno.land/std/http/user_agent.ts?s=UserAgent)
-   * for more information.
+   * A representation of the parsed value of the
+   * [`User-Agent`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/User-Agent)
+   * header if associated with the request. This can provide information about
+   * the browser and device making the request.
    */
   get userAgent(): UserAgent {
+    if (!this.#userAgent) {
+      this.#userAgent = new UserAgent(
+        this.#requestEvent.request.headers.get("user-agent"),
+      );
+    }
     return this.#userAgent;
   }
 
   constructor(
-    { requestEvent, keys, headers, secure, params, deserializer }:
-      ContextOptions<
-        BodyType,
-        Params
-      >,
+    requestEvent: RequestEvent<Env>,
+    responseHeaders: Headers,
+    secure: boolean,
+    params: Params,
+    schema: Schema<QSSchema, BSchema, ResSchema>,
+    keys: KeyRing | undefined,
   ) {
     this.#requestEvent = requestEvent;
-    this.#params = params ?? {} as Params;
-    this.#deserializer = deserializer;
+    this.#responseHeaders = responseHeaders;
+    this.#params = params;
+    this.#schema = schema;
+    this.#url = new URL(this.#requestEvent.request.url);
     this.#cookies = new SecureCookieMap(requestEvent.request, {
       keys,
-      response: headers,
+      response: responseHeaders,
       secure,
     });
-    this.#userAgent = new UserAgent(
-      requestEvent.request.headers.get("user-agent"),
-    );
+    this.#logger = getLogger(["acorn", "context", requestEvent.id]);
   }
 
-  /** A convenience method to deal with decoding a JSON string body. It can be
-   * used with an optional {@linkcode Deserializer} which can do advanced
-   * decoding of the body, or it will attempted to be decoded from the JSON
-   * string. */
-  async body(): Promise<BodyType | undefined> {
-    if (this.#bodySet) {
-      return this.#body;
-    }
-    this.#bodySet = true;
-    if (!this.#requestEvent.request.bodyUsed) {
-      if (this.#deserializer) {
-        const bodyString = await this.#requestEvent.request.text();
-        this.#body = await this.#deserializer.parse(
-          bodyString,
-          this.#params,
-          this.#requestEvent.request,
-        );
-      } else {
-        try {
-          this.#body = await this.#requestEvent.request.json();
-        } catch {
-          this.#body = undefined;
-        }
+  /**
+   * Attempts to read the body as JSON. If a schema was associated with the
+   * route, the schema will be used to validate the body. If the body is invalid
+   * and a invalid handler was specified, that will be called. If the body is
+   * invalid and no invalid handler was specified, the method will throw as a
+   * `BadRequest` HTTP error, with the validation error as the `cause`.
+   *
+   * If the body is valid, it will be resolved. If there was no body, or the
+   * body was already consumed, `undefined` will be resolved. Requests which
+   * have a method of `GET` or `HEAD` will always resolved with `undefined`.
+   *
+   * If more direct control of the body is required, use the methods directly
+   * on the {@linkcode Request} on the `.request` property of the context.
+   */
+  async body(): Promise<RequestBody | undefined> {
+    if (!this.#bodySet) {
+      this.#bodySet = true;
+      this.#logger.debug`validating body`;
+      const result = await this.#schema.validateBody(this.#requestEvent);
+      if (result.invalidResponse) {
+        this.#requestEvent.respond(result.invalidResponse);
+        return undefined;
       }
+      this.#body = result.output as RequestBody;
     }
     return this.#body;
   }
 
-  /** Attempt to upgrade the request to a web socket, returning the socket and
-   * the response to be returned.
+  /**
+   * In addition to the value of `.url.searchParams`, acorn can parse and
+   * validate the search part of the requesting URL with the
+   * [qs](https://github.com/ljharb/qs) library and any supplied query string
+   * schema, which provides a more advanced way of parsing the search part of a
+   * URL.
+   */
+  async queryParams(): Promise<QueryParams | undefined> {
+    if (!this.#queryParams) {
+      this.#logger.debug`validating query parameters`;
+      const result = await this.#schema.validateQueryString(this.#requestEvent);
+      if (result.invalidResponse) {
+        this.#requestEvent.respond(result.invalidResponse);
+        return undefined;
+      }
+      this.#queryParams = result.output as QueryParams;
+    }
+    return this.#queryParams;
+  }
+
+  /**
+   * Initiate server sent events, returning a {@linkcode ServerSentEventTarget}
+   * which can be used to dispatch events to the client.
    *
-   * ## Example
+   * This will immediately finalize the response and send it to the client,
+   * which means that any value returned from the handler will be ignored. Any
+   * additional information to initialize the response should be passed as
+   * options to the method.
+   */
+  sendEvents(
+    options?: ServerSentEventTargetOptions & ResponseInit,
+  ): ServerSentEventTarget {
+    if (this.#requestEvent.responded) {
+      throw new Error("Cannot send the correct response, already responded.");
+    }
+    this.#logger.debug`starting server sent events`;
+    const sse = new ServerSentEventStreamTarget(options);
+    const response = sse.asResponse(options);
+    this.#requestEvent.respond(appendHeaders(response, this.#responseHeaders));
+    return sse;
+  }
+
+  /**
+   * Upgrade the current connection to a web socket and return the
+   * {@linkcode WebSocket} object to be able to communicate with the remote
+   * client.
    *
-   * ```ts
-   * import { Router } from "https://deno.land/x/acorn/mod.ts";
+   * This is not supported in all runtimes and will throw if not supported.
    *
-   * const router = new Router();
-   *
-   * router.get("/ws", (ctx) => {
-   *   const { socket, response } = ctx.upgrade();
-   *   // Perform actions with the socket.
-   *   return response;
-   * });
-   *
-   * router.listen({ port: 8000 });
-   * ```
-   *
-   * @param options
-   * @returns
+   * This will immediately respond to the client to initiate the web socket
+   * connection meaning any value returned from the handler will be ignored.
    */
   upgrade(options?: UpgradeWebSocketOptions): WebSocket {
     if (!this.#requestEvent.upgrade) {
       throw createHttpError(
         Status.ServiceUnavailable,
-        "Web sockets not supported.",
+        "Web sockets not currently supported.",
       );
     }
-    this.#responded = true;
+    if (this.#requestEvent.responded) {
+      throw new Error("Cannot upgrade, already responded.");
+    }
+    this.#logger.debug`upgrading to web socket`;
     return this.#requestEvent.upgrade(options);
   }
 
-  /** Returns the request URL as a parsed {@linkcode URL} object. */
-  url(): URL {
-    if (!this.#url) {
-      this.#url = new URL(this.#requestEvent.request.url);
+  [Symbol.for("Deno.customInspect")](
+    inspect: (value: unknown) => string,
+  ): string {
+    return `${this.constructor.name} ${
+      inspect({
+        addr: this.#requestEvent.addr,
+        env: this.env,
+        id: this.#requestEvent.id,
+        params: this.#params,
+        cookies: this.#cookies,
+        request: this.#requestEvent.request,
+        userAgent: this.userAgent,
+        url: this.#url,
+      })
+    }`;
+  }
+
+  [Symbol.for("nodejs.util.inspect.custom")](
+    depth: number,
+    // deno-lint-ignore no-explicit-any
+    options: any,
+    inspect: (value: unknown, options?: unknown) => string,
+    // deno-lint-ignore no-explicit-any
+  ): any {
+    if (depth < 0) {
+      return options.stylize(`[${this.constructor.name}]`, "special");
     }
-    return this.#url;
+
+    const newOptions = Object.assign({}, options, {
+      depth: options.depth === null ? null : options.depth - 1,
+    });
+    return `${options.stylize(this.constructor.name, "special")} ${
+      inspect({
+        addr: this.#requestEvent.addr,
+        env: this.env,
+        id: this.#requestEvent.id,
+        params: this.#params,
+        cookies: this.#cookies,
+        request: this.#requestEvent.request,
+        userAgent: this.userAgent,
+        url: this.#url,
+      }, newOptions)
+    }`;
   }
 }

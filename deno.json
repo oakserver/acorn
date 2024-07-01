@@ -1,20 +1,23 @@
 {
   "name": "@oak/acorn",
-  "version": "0.7.1",
-  "exports": {
-    ".": "./mod.ts",
-    "./context": "./context.ts",
-    "./handlers": "./handlers.ts",
-    "./http_server_bun": "./http_server_bun.ts",
-    "./http_server_deno": "./http_server_deno.ts",
-    "./http_server_node": "./http_server_node.ts",
-    "./router": "./router.ts",
-    "./types": "./types.ts"
-  },
+  "version": "1.0.0-alpha.1",
+  "exports": { ".": "./mod.ts" },
   "tasks": {
     "bench": "deno bench",
-    "example": "deno run --allow-net --allow-hrtime _examples/server.ts",
-    "test": "deno test --allow-net --parallel"
+    "check": "deno check mod.ts",
+    "example": "deno run --allow-net --allow-env --allow-hrtime _examples/server.ts",
+    "test": "deno test --allow-net --allow-env --allow-hrtime"
+  },
+  "imports": {
+    "@logtape/logtape": "jsr:@logtape/logtape@^0.4",
+    "@oak/commons": "jsr:@oak/commons@^0.12",
+    "@std/assert": "jsr:@std/assert@^0.226",
+    "@std/http": "jsr:@std/http@^0.224",
+    "@std/media-types": "jsr:@std/media-types@^1.0",
+    "@valibot/valibot": "jsr:@valibot/valibot@^0.35",
+    "hyperid": "npm:hyperid@^3.2",
+    "path-to-regexp": "npm:path-to-regexp@^6.2",
+    "qs": "npm:qs@^6.12"
   },
   "lock": false
 }
