@@ -1,6 +1,6 @@
 {
   "name": "@oak/acorn",
-  "version": "1.0.0-alpha.2",
+  "version": "1.0.0-alpha.3",
   "exports": { ".": "./mod.ts" },
   "tasks": {
     "bench": "deno bench",
@@ -9,7 +9,7 @@
     "test": "deno test --allow-net --allow-env --allow-hrtime"
   },
   "imports": {
-    "@logtape/logtape": "jsr:@kitsonk/logtape@^0.5",
+    "@logtape/logtape": "jsr:@kitsonk/logtape@0.5.0-alpha.1",
     "@oak/commons": "jsr:@oak/commons@^0.12",
     "@std/assert": "jsr:@std/assert@^0.226",
     "@std/http": "jsr:@std/http@^0.224",
