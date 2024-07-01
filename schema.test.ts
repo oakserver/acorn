@@ -122,14 +122,14 @@ Deno.test({
 });
 
 Deno.test({
-  name: "Schema - invalid response should should reject with 400",
+  name: "Schema - invalid response should should reject with 500",
   async fn() {
     const schema = new Schema({ response: v.object({ hello: v.number() }) });
     const error = await assertRejects(async () => {
       await schema.validateResponse({ hello: "world" });
     });
     assert(isHttpError(error));
-    assertEquals(error.status, 400);
+    assertEquals(error.status, 500);
   },
 });
 
