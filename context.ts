@@ -10,7 +10,6 @@
  * @module
  */
 
-import { getLogger, type Logger } from "@logtape/logtape";
 import { type KeyRing, SecureCookieMap } from "@oak/commons/cookie_map";
 import { createHttpError } from "@oak/commons/http_errors";
 import {
@@ -22,6 +21,7 @@ import { Status } from "@oak/commons/status";
 import { UserAgent } from "@std/http/user-agent";
 import type { InferOutput } from "@valibot/valibot";
 
+import { getLogger, type Logger } from "./logger.ts";
 import type { BodySchema, QueryStringSchema, Schema } from "./schema.ts";
 import type {
   Addr,
@@ -186,7 +186,7 @@ export class Context<
       response: responseHeaders,
       secure,
     });
-    this.#logger = getLogger(["acorn", "context", requestEvent.id]);
+    this.#logger = getLogger("acorn.context");
   }
 
   /**
@@ -206,7 +206,7 @@ export class Context<
   async body(): Promise<RequestBody | undefined> {
     if (!this.#bodySet) {
       this.#bodySet = true;
-      this.#logger.debug`validating body`;
+      this.#logger.debug(`${this.#requestEvent.id} validating body`);
       const result = await this.#schema.validateBody(this.#requestEvent);
       if (result.invalidResponse) {
         this.#requestEvent.respond(result.invalidResponse);
@@ -226,7 +226,9 @@ export class Context<
    */
   async queryParams(): Promise<QueryParams | undefined> {
     if (!this.#queryParams) {
-      this.#logger.debug`validating query parameters`;
+      this.#logger.debug(
+        `${this.#requestEvent.id} validating query parameters`,
+      );
       const result = await this.#schema.validateQueryString(this.#requestEvent);
       if (result.invalidResponse) {
         this.#requestEvent.respond(result.invalidResponse);
@@ -252,7 +254,7 @@ export class Context<
     if (this.#requestEvent.responded) {
       throw new Error("Cannot send the correct response, already responded.");
     }
-    this.#logger.debug`starting server sent events`;
+    this.#logger.debug(`${this.#requestEvent.id} starting server sent events`);
     const sse = new ServerSentEventStreamTarget(options);
     const response = sse.asResponse(options);
     this.#requestEvent.respond(appendHeaders(response, this.#responseHeaders));
@@ -279,7 +281,7 @@ export class Context<
     if (this.#requestEvent.responded) {
       throw new Error("Cannot upgrade, already responded.");
     }
-    this.#logger.debug`upgrading to web socket`;
+    this.#logger.debug(`${this.#requestEvent.id} upgrading to web socket`);
     return this.#requestEvent.upgrade(options);
   }
 

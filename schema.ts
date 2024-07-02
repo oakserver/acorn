@@ -1,6 +1,5 @@
 // Copyright 2018-2024 the oak authors. All rights reserved.
 
-import { getLogger } from "@logtape/logtape";
 import { createHttpError } from "@oak/commons/http_errors";
 import { Status } from "@oak/commons/status";
 import {
@@ -22,6 +21,7 @@ import {
 import { parse } from "qs";
 
 import { BODYLESS_METHODS } from "./constants.ts";
+import { getLogger } from "./logger.ts";
 import type { RequestEvent } from "./types.ts";
 
 /**
@@ -138,7 +138,7 @@ export class Schema<
 > {
   #body?: BSchema;
   #invalidHandler?: InvalidHandler<QSSchema, BSchema, ResSchema>;
-  #logger = getLogger(["acorn", "schema"]);
+  #logger = getLogger("acorn.schema");
   #options?: ValidationOptions<QSSchema | BSchema | ResSchema>;
   #querystring?: QSSchema;
   #response?: ResSchema;
@@ -162,26 +162,26 @@ export class Schema<
     requestEvent: RequestEvent,
   ): Promise<MaybeValid<unknown>> {
     const id = requestEvent.id;
-    this.#logger.debug`${id} schema.validateQueryString()`;
+    this.#logger.debug(`${id} schema.validateQueryString()`);
     const input = parse(requestEvent.url.search.slice(1));
     if (!this.#querystring) {
-      this.#logger.debug`${id} no querystring schema provided.`;
+      this.#logger.debug(`${id} no querystring schema provided.`);
       return { output: input };
     }
     if (this.#invalidHandler) {
-      this.#logger.debug`${id} validating querystring.`;
+      this.#logger.debug(`${id} validating querystring.`);
       const result = await safeParseAsync(
         this.#querystring,
         input,
         this.#options,
       );
       if (result.success) {
-        this.#logger.debug`${id} querystring is valid.`;
+        this.#logger.debug(`${id} querystring is valid.`);
         return { output: result.output };
       } else {
         try {
           this.#logger
-            .info`${id} querystring is invalid, calling invalid handler.`;
+            .info(`${id} querystring is invalid, calling invalid handler.`);
           return {
             invalidResponse: await this.#invalidHandler(
               "querystring",
@@ -189,7 +189,7 @@ export class Schema<
             ),
           };
         } catch (cause) {
-          this.#logger.error`${id} invalid handler failed.`;
+          this.#logger.error(`${id} invalid handler failed.`);
           throw createHttpError(
             Status.InternalServerError,
             "Invalid handler failed",
@@ -199,12 +199,12 @@ export class Schema<
       }
     } else {
       try {
-        this.#logger.debug`${id} validating querystring.`;
+        this.#logger.debug(`${id} validating querystring.`);
         return {
           output: await parseAsync(this.#querystring, input, this.#options),
         };
       } catch (cause) {
-        this.#logger.info`${id} querystring is invalid.`;
+        this.#logger.info(`${id} querystring is invalid.`);
         throw createHttpError(Status.BadRequest, "Invalid querystring", {
           cause,
         });
@@ -223,14 +223,14 @@ export class Schema<
    * `undefined`.
    */
   async validateBody(requestEvent: RequestEvent): Promise<MaybeValid<unknown>> {
-    this.#logger.debug`${requestEvent.id} schema.validateQueryString()`;
+    this.#logger.debug(`${requestEvent.id} schema.validateQueryString()`);
     if (BODYLESS_METHODS.includes(requestEvent.request.method)) {
-      this.#logger.debug`${requestEvent.id} method cannot have a body.`;
+      this.#logger.debug(`${requestEvent.id} method cannot have a body.`);
       return { output: undefined };
     }
     const input = await requestEvent.request.json();
     if (!this.#body) {
-      this.#logger.debug`${requestEvent.id} no body schema provided.`;
+      this.#logger.debug(`${requestEvent.id} no body schema provided.`);
       return { output: input };
     }
     if (this.#invalidHandler) {
@@ -240,12 +240,14 @@ export class Schema<
         this.#options,
       );
       if (result.success) {
-        this.#logger.debug`${requestEvent.id} body is valid.`;
+        this.#logger.debug(`${requestEvent.id} body is valid.`);
         return { output: result.output };
       } else {
         try {
           this.#logger
-            .info`${requestEvent.id} body is invalid, calling invalid handler.`;
+            .info(
+              `${requestEvent.id} body is invalid, calling invalid handler.`,
+            );
           return {
             invalidResponse: await this.#invalidHandler(
               "body",
@@ -253,7 +255,7 @@ export class Schema<
             ),
           };
         } catch (cause) {
-          this.#logger.error`${requestEvent.id} invalid handler failed.`;
+          this.#logger.error(`${requestEvent.id} invalid handler failed.`);
           throw createHttpError(
             Status.InternalServerError,
             "Invalid handler failed",
@@ -263,12 +265,12 @@ export class Schema<
       }
     } else {
       try {
-        this.#logger.debug`${requestEvent.id} validating body.`;
+        this.#logger.debug(`${requestEvent.id} validating body.`);
         return {
           output: await parseAsync(this.#body, input, this.#options),
         };
       } catch (cause) {
-        this.#logger.info`${requestEvent.id} body is invalid.`;
+        this.#logger.info(`${requestEvent.id} body is invalid.`);
         throw createHttpError(Status.BadRequest, "Invalid body", { cause });
       }
     }

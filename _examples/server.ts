@@ -11,7 +11,7 @@ const keys = new KeyStack(["super secret"]);
 
 const router = new Router({
   keys,
-  logger: { console: { level: "debug" } },
+  logger: { console: { level: "DEBUG" } },
 });
 
 router.get("/", async (ctx) => {

@@ -7,7 +7,6 @@
  * @module
  */
 
-import { dispose, getLogger, type Logger } from "@logtape/logtape";
 import type { KeyRing } from "@oak/commons/cookie_map";
 import { createHttpError, isHttpError } from "@oak/commons/http_errors";
 import type { HttpMethod } from "@oak/commons/method";
@@ -15,7 +14,12 @@ import { Status } from "@oak/commons/status";
 import { assert } from "@std/assert/assert";
 import type { InferOutput } from "@valibot/valibot";
 
-import { configureLogger, type LoggerOptions } from "./logger.ts";
+import {
+  configure,
+  getLogger,
+  type Logger,
+  type LoggerOptions,
+} from "./logger.ts";
 import type { CloudflareWorkerRequestEvent } from "./request_event_cfw.ts";
 import { PathRoute, type RouteHandler, type RouteOptions } from "./route.ts";
 import {
@@ -548,12 +552,12 @@ export class Router<
       this.#keys,
       this.#routeOptions,
     );
-    this.#logger.debug`adding route for ${methods.join(", ")} ${path}`;
+    this.#logger.debug(`adding route for ${methods.join(", ")} ${path}`);
     this.#routes.add(route);
 
     return {
       remove: () => {
-        this.#logger.debug`removing route for ${methods.join(", ")} ${path}`;
+        this.#logger.debug(`removing route for ${methods.join(", ")} ${path}`);
         this.#routes.delete(route);
       },
     };
@@ -565,9 +569,11 @@ export class Router<
     requestEvent?: RequestEvent<Env>,
     route?: Route,
   ) {
-    this.#logger.error`${requestEvent?.id} error handling request: ${message}`;
+    this.#logger.error(
+      `${requestEvent?.id} error handling request: ${message}`,
+    );
     if (this.#onError) {
-      this.#logger.debug`${requestEvent?.id} calling onError for request`;
+      this.#logger.debug(`${requestEvent?.id} calling onError for request`);
       const maybeResponse = await this.#onError({
         message,
         cause,
@@ -577,13 +583,17 @@ export class Router<
       });
       if (requestEvent && !requestEvent?.responded && maybeResponse) {
         this.#logger
-          .debug`${requestEvent?.id} responding with onError response for request`;
+          .debug(
+            `${requestEvent?.id} responding with onError response for request`,
+          );
         return requestEvent.respond(maybeResponse);
       }
     }
     if (requestEvent && !requestEvent?.responded) {
       this.#logger
-        .debug`${requestEvent?.id} responding with default response for request`;
+        .debug(
+          `${requestEvent?.id} responding with default response for request`,
+        );
       if (isHttpError(cause)) {
         return requestEvent.respond(
           cause.asResponse({
@@ -615,7 +625,7 @@ export class Router<
     secure: boolean,
   ): Promise<void> {
     const id = requestEvent.id;
-    this.#logger.info`${id} handling request: ${requestEvent.url.toString()}`;
+    this.#logger.info(`${id} handling request: ${requestEvent.url.toString()}`);
     const start = performance.now();
     let response: Response | undefined | void;
     let route: Route | undefined;
@@ -623,7 +633,7 @@ export class Router<
     requestEvent.response.then(() =>
       this.#handling.delete(requestEvent.response)
     ).catch((cause) => {
-      this.#logger.error`${id} error deleting handling handle for request`;
+      this.#logger.error(`${id} error deleting handling handle for request`);
       this.#error("Error deleting handling handle.", cause, requestEvent);
     });
     this.#onRequest?.(requestEvent);
@@ -636,7 +646,7 @@ export class Router<
             requestEvent.request.method as HttpMethod,
           )
         ) {
-          this.#logger.info`${id} request matched`;
+          this.#logger.info(`${id} request matched`);
           try {
             response = await route.handle(
               requestEvent,
@@ -659,7 +669,7 @@ export class Router<
               break;
             }
           } catch (cause) {
-            this.#logger.error`${id} error during handling request`;
+            this.#logger.error(`${id} error during handling request`);
             await this.#error(
               "Error during handling.",
               cause,
@@ -676,7 +686,7 @@ export class Router<
       }
     }
     if (!requestEvent.responded) {
-      this.#logger.debug`${id} not found`;
+      this.#logger.debug(`${id} not found`);
       response = response ??
         createHttpError(Status.NotFound, "Not Found").asResponse({
           prefer: this.#preferJson ? "json" : "html",
@@ -692,13 +702,17 @@ export class Router<
     }
     const duration = performance.now() - start;
     if (response) {
-      this.#logger.info`${id} handled in ${parseFloat(duration.toFixed(2))}ms`;
+      this.#logger.info(
+        `${id} handled in ${parseFloat(duration.toFixed(2))}ms`,
+      );
       this.#onHandled?.({ duration, requestEvent, response, route });
     } else {
       this.#logger
-        .debug`${id} responded to outside handle loop in ${
-        parseFloat(duration.toFixed(2))
-      }ms`;
+        .debug(
+          `${id} responded to outside handle loop in ${
+            parseFloat(duration.toFixed(2))
+          }ms`,
+        );
     }
   }
 
@@ -710,7 +724,7 @@ export class Router<
     route?: Route,
   ): Promise<Response> {
     if (response.status === Status.NotFound && this.#onNotFound) {
-      this.#logger.debug`${requestEvent.id} calling onNotFound`;
+      this.#logger.debug(`${requestEvent.id} calling onNotFound`);
       response = await this.#onNotFound?.({ requestEvent, response, route }) ??
         response;
     }
@@ -718,7 +732,7 @@ export class Router<
     for (const route of this.#statusRoutes) {
       if (route.matches(response)) {
         this.#logger
-          .debug`${requestEvent.id} matched status route ${route.status}`;
+          .debug(`${requestEvent.id} matched status route ${route.status}`);
         result = route.handle(
           requestEvent,
           responseHeaders,
@@ -751,9 +765,9 @@ export class Router<
     this.#preferJson = preferJson;
     this.#routeOptions = routerOptions;
     if (logger) {
-      configureLogger(typeof logger === "object" ? logger : undefined);
+      configure(typeof logger === "object" ? logger : undefined);
     }
-    this.#logger = getLogger(["acorn", "router"]);
+    this.#logger = getLogger("acorn.router");
   }
 
   /**
@@ -1590,11 +1604,11 @@ export class Router<
       schemaDescriptor,
       this.#keys,
     );
-    this.#logger.debug`adding status route for ${status.join(", ")}`;
+    this.#logger.debug(`adding status route for ${status.join(", ")}`);
     this.#statusRoutes.add(route);
     return {
       remove: () => {
-        this.#logger.debug`removing status route for ${status.join(", ")}`;
+        this.#logger.debug(`removing status route for ${status.join(", ")}`);
         this.#statusRoutes.delete(route);
       },
     };
@@ -1632,9 +1646,9 @@ export class Router<
       secure,
       onListen,
     } = options;
-    this.#logger.debug`listen options: ${options}`;
+    this.#logger.debug(`listen options: ${options}`);
     signal?.addEventListener("abort", async () => {
-      this.#logger.debug`closing server`;
+      this.#logger.debug(`closing server`);
       await Promise.all(this.#handling);
       this.#handling.clear();
       this.#abortController.abort();
@@ -1646,7 +1660,7 @@ export class Router<
       signal: this.#abortController.signal,
     });
     const addr = await server.listen();
-    this.#logger.info`listening on: ${addr}`;
+    this.#logger.info(`listening on: ${addr}`);
     onListen?.(addr);
     try {
       for await (const requestEvent of server) {
@@ -1700,7 +1714,7 @@ export class Router<
     try {
       this.#handle(requestEvent, true);
     } catch (cause) {
-      this.#logger.error`${requestEvent.id} internal error when handling.`;
+      this.#logger.error(`${requestEvent.id} internal error when handling.`);
       if (this.#passThroughOnException) {
         throw cause;
       }
@@ -1720,7 +1734,6 @@ export class Router<
         );
       }
     }
-    ctx.waitUntil(dispose());
     return requestEvent.response;
   };
 

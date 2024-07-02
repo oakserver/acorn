@@ -1,6 +1,5 @@
 // Copyright 2018-2024 the oak authors. All rights reserved.
 
-import { getLogger, type Logger } from "@logtape/logtape";
 import type { KeyRing } from "@oak/commons/cookie_map";
 import { createHttpError } from "@oak/commons/http_errors";
 import type { HttpMethod } from "@oak/commons/method";
@@ -9,6 +8,7 @@ import { type Key, pathToRegexp } from "path-to-regexp";
 import type { InferOutput } from "@valibot/valibot";
 
 import { Context } from "./context.ts";
+import { getLogger, type Logger } from "./logger.ts";
 import type {
   ParamsDictionary,
   RequestEvent,
@@ -179,9 +179,9 @@ export class PathRoute<
     this.#handler = handler;
     this.#keys = keys;
     this.#regex = pathToRegexp(path, this.#paramKeys, options);
-    this.#logger = getLogger(["acorn", "route", path]);
+    this.#logger = getLogger("acorn.route");
     this.#logger
-      .debug`created route with path: ${path} and methods: ${methods}`;
+      .debug(`created route with path: ${path} and methods: ${methods}`);
   }
 
   /**
@@ -193,7 +193,7 @@ export class PathRoute<
     responseHeaders: Headers,
     secure: boolean,
   ): Promise<Response | undefined> {
-    this.#logger.debug`${requestEvent.id} route.handle()`;
+    this.#logger.debug(`[${this.#path}] ${requestEvent.id} route.handle()`);
     if (!this.#params) {
       throw createHttpError(
         Status.InternalServerError,
@@ -216,27 +216,35 @@ export class PathRoute<
       this.#schema,
       this.#keys,
     );
-    this.#logger.debug`${requestEvent.id} calling handler`;
+    this.#logger.debug(`[${this.#path}] ${requestEvent.id} calling handler`);
     const result = await this.#handler(context);
     this.#logger
-      .debug`${requestEvent.id} handler returned with value: ${!!result}`;
+      .debug(`${requestEvent.id} handler returned with value: ${!!result}`);
     if (result instanceof Response) {
-      this.#logger.debug`${requestEvent.id} handler returned a Response object`;
+      this.#logger
+        .debug(
+          `[${this.#path}] ${requestEvent.id} handler returned a Response object`,
+        );
       return appendHeaders(result, responseHeaders);
     }
     if (result) {
       this.#logger
-        .debug`${requestEvent.id} handler returned a value, validating response`;
+        .debug(
+          `${requestEvent.id} handler returned a value, validating response`,
+        );
       const maybeValid = await this.#schema.validateResponse(result);
       if (maybeValid.output) {
-        this.#logger.debug`${requestEvent.id} response is valid`;
+        this.#logger
+          .debug(`[${this.#path}] ${requestEvent.id} response is valid`);
         return Response.json(maybeValid.output, { headers: responseHeaders });
       } else {
-        this.#logger.error`${requestEvent.id} response is invalid`;
+        this.#logger
+          .error(`[${this.#path}] ${requestEvent.id} response is invalid`);
         return maybeValid.invalidResponse;
       }
     }
-    this.#logger.debug`${requestEvent.id} handler returned no value`;
+    this.#logger
+      .debug(`[${this.#path}] ${requestEvent.id} handler returned no value`);
     return new Response(null, {
       status: Status.NoContent,
       statusText: STATUS_TEXT[Status.NoContent],
@@ -250,7 +258,8 @@ export class PathRoute<
     if (this.#methods.includes(method)) {
       const match = pathname.match(this.#regex);
       if (match) {
-        this.#logger.debug`route matched: ${method} ${pathname}`;
+        this.#logger
+          .debug(`[${this.#path}] route matched: ${method} ${pathname}`);
         const params = {} as Params;
         const captures = match.slice(1);
         for (let i = 0; i < captures.length; i++) {
