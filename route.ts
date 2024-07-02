@@ -112,9 +112,9 @@ export class PathRoute<
   #logger: Logger;
   #methods: HttpMethod[];
   #params?: Params;
-  #paramKeys: Key[] = [];
+  #paramKeys: Key[];
   #path: Path;
-  #regex: RegExp;
+  #regex: RegExp & { keys: Key[] };
   #schema: Schema<QSSchema, BSchema, ResSchema>;
 
   /**
@@ -178,7 +178,8 @@ export class PathRoute<
     this.#schema = new Schema(schemaDescriptor);
     this.#handler = handler;
     this.#keys = keys;
-    this.#regex = pathToRegexp(path, this.#paramKeys, options);
+    this.#regex = pathToRegexp(path, options);
+    this.#paramKeys = this.#regex.keys;
     this.#logger = getLogger("acorn.route");
     this.#logger
       .debug(`created route with path: ${path} and methods: ${methods}`);

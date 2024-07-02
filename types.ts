@@ -29,14 +29,27 @@ export interface CloudflareFetchHandler<
   ): Promise<Response>;
 }
 
+/**
+ * A handle to something which can be removed from the router.
+ */
 export interface Removeable {
+  /**
+   * Removes the item from the router.
+   */
   remove(): void;
 }
 
+/**
+ * The base type for parameters that are parsed from the path of a request.
+ */
 export interface ParamsDictionary {
   [key: string]: string;
 }
 
+/**
+ * The base type of query parameters that are parsed from the query string of a
+ * request.
+ */
 export interface QueryParamsDictionary {
   [key: string]:
     | undefined
@@ -46,12 +59,27 @@ export interface QueryParamsDictionary {
     | QueryParamsDictionary[];
 }
 
+/**
+ * The network address representation.
+ */
 export interface Addr {
+  /**
+   * The transport protocol used for the address.
+   */
   transport: "tcp" | "udp";
+  /**
+   * The hostname or IP address.
+   */
   hostname: string;
+  /**
+   * The port number.
+   */
   port: number;
 }
 
+/**
+ * Options that can be passed when upgrading a connection to a web socket.
+ */
 export interface UpgradeWebSocketOptions {
   /** Sets the `.protocol` property on the client side web socket to the
    * value provided here, which should be one of the strings specified in the
@@ -88,6 +116,10 @@ export interface RequestServer<
   [Symbol.asyncIterator](): AsyncIterableIterator<RequestEvent<Env>>;
 }
 
+/**
+ * Options that can be passed to the server to configure the TLS settings
+ * (HTTPS).
+ */
 export interface TlsOptions {
   key: string;
   cert: string;
@@ -102,15 +134,28 @@ export interface TlsOptions {
  * construction of the server.
  */
 export interface RequestServerOptions {
+  /**
+   * The hostname and port that the server should listen on.
+   */
   hostname?: string;
+  /**
+   * The port that the server should listen on.
+   */
   port?: number;
+  /**
+   * The abort signal that should be used to abort the server.
+   */
   signal: AbortSignal;
+  /**
+   * The TLS options that should be used to configure the server for HTTPS.
+   */
   tls?: TlsOptions;
 }
 
 /**
  * The abstract interface that defines what a {@linkcode RequestServer}
- * constructor needs to adhere to. */
+ * constructor needs to adhere to.
+ */
 export interface RequestServerConstructor {
   new <Env extends Record<string, string> = Record<string, string>>(
     options: RequestServerOptions,
@@ -149,19 +194,35 @@ export interface RequestEvent<
    * An indicator of if the response method has been invoked yet.
    */
   readonly responded: boolean;
+  /**
+   * The parsed URL of the request.
+   */
   readonly url: URL;
+  /**
+   * Called to indicate an error occurred while processing the request.
+   */
   // deno-lint-ignore no-explicit-any
   error(reason?: any): void;
+  /**
+   * Called to indicate that the request has been processed and the response
+   * is ready to be sent.
+   */
   respond(response: Response): void | Promise<void>;
+  /**
+   * Upgrades the request to a web socket connection.
+   */
   upgrade?(options?: UpgradeWebSocketOptions): WebSocket;
 }
 
+/**
+ * The execution context that is passed to the Cloudflare Worker fetch handler.
+ */
 export interface CloudflareExecutionContext {
   waitUntil(promise: Promise<unknown>): void;
   passThroughOnException(): void;
 }
 
-export type TypedArray =
+type TypedArray =
   | Uint8Array
   | Uint16Array
   | Uint32Array
@@ -204,16 +265,21 @@ export type RouteParameters<Route extends string> = string extends Route
   // deno-lint-ignore ban-types
   : {};
 
+/** The abstract interface that needs to be implemented for a route. */
 export interface Route<
   Env extends Record<string, string> = Record<string, string>,
 > {
+  /** The methods that the route should match on. */
   readonly methods: HttpMethod[];
+  /** The path that the route should match on. */
   readonly path: string;
 
+  /** Handle the request event. */
   handle(
     requestEvent: RequestEvent<Env>,
     responseHeaders: Headers,
     secure: boolean,
   ): Promise<Response | undefined>;
+  /** Determines if the pathname and method are a match. */
   matches(pathname: string, method: HttpMethod): boolean;
 }

@@ -302,7 +302,7 @@ export interface RouterOptions<
    * - output logs to a {@linkcode WritableStream}
    *
    * If the value of the option is `true`, logs will be output to the console at
-   * the `"warning"` level. If you provide an object, you can choose the level
+   * the `"WARN"` level. If you provide an object, you can choose the level
    * and other configuration options for each log sink of `console`, `file`, and
    * `stream`.
    *

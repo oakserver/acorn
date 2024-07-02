@@ -368,7 +368,7 @@
  * ```
  *
  * Alternatively, you can simply set the `logger` property to `true` to log
- * events at the `"warning"` level to the console:
+ * events at the `"WARN"` level to the console:
  *
  * ```ts
  * const router = new Router({
@@ -379,6 +379,10 @@
  * @module
  */
 
+/**
+ * The re-export of the [valibot](https://valibot.dev/guides/introduction/)
+ * library which is used for schema validation in acorn.
+ */
 export * as v from "@valibot/valibot";
 export type { ServerSentEventTarget } from "@oak/commons/server_sent_event";
 
@@ -402,4 +406,10 @@ export type {
   StatusRoute,
   StatusRouteDescriptor,
 } from "./status_route.ts";
-export type { RequestEvent, Route, RouteParameters } from "./types.ts";
+export type {
+  CloudflareExecutionContext,
+  CloudflareFetchHandler,
+  RequestEvent,
+  Route,
+  RouteParameters,
+} from "./types.ts";

@@ -19,7 +19,7 @@ export { type Logger } from "@std/log";
  */
 export interface FileLoggerOptions {
   /**
-   * The log level to log at. The default is `"info"`.
+   * The log level to log at. The default is `"INFO"`.
    */
   level?: LevelName;
   /**
@@ -43,14 +43,14 @@ export interface FileLoggerOptions {
  */
 export interface LoggerOptions {
   /**
-   * Log events to the console. If `true`, log at the "info" level. If an
+   * Log events to the console. If `true`, log at the "INFO" level. If an
    * object, the `level` can be specified.
    */
   console?: boolean | { level: LevelName };
   /**
    * Log events to a rotating log file. The value should be an object with the
    * `path` to the log file and optionally the `level` to log at. If `level` is
-   * not specified, the default is `"info"`.
+   * not specified, the default is `"INFO"`.
    */
   file?: FileLoggerOptions;
   /**
