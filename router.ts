@@ -435,7 +435,6 @@ let CFWRequestEventCtor: typeof CloudflareWorkerRequestEvent | undefined;
 export class Router<
   Env extends Record<string, string> = Record<string, string>,
 > {
-  #abortController = new AbortController();
   #handling = new Set<Promise<Response>>();
   #logger: Logger;
   #keys?: KeyRing;
@@ -1647,17 +1646,18 @@ export class Router<
       onListen,
     } = options;
     this.#logger.debug(`listen options: ${options}`);
+    const abortController = new AbortController();
     signal?.addEventListener("abort", async () => {
       this.#logger.debug(`closing server`);
       await Promise.all(this.#handling);
       this.#handling.clear();
-      this.#abortController.abort();
+      abortController.abort();
     });
     const server = new Server<Env>({
       port,
       hostname,
       tls,
-      signal: this.#abortController.signal,
+      signal: abortController.signal,
     });
     const addr = await server.listen();
     this.#logger.info(`listening on: ${addr}`);
