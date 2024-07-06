@@ -10,7 +10,11 @@ export function appendHeaders(response: Response, headers: Headers): Response {
   return response;
 }
 
-/** Offloads to the native `Promise.withResolvers` when available. */
+/**
+ * Creates a promise with resolve and reject functions that can be called.
+ *
+ * Offloads to the native `Promise.withResolvers` when available.
+ */
 export function createPromiseWithResolvers<T>(): {
   promise: Promise<T>;
   resolve: (value: T | PromiseLike<T>) => void;
@@ -31,7 +35,7 @@ export function createPromiseWithResolvers<T>(): {
 
 /**
  * Safely decode a URI component, where if it fails, instead of throwing,
- * just returns the original string
+ * just returns the original string.
  */
 export function decodeComponent(text: string) {
   try {

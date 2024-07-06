@@ -55,6 +55,9 @@ const serve:
 
 const instance = hyperid({ urlSafe: true });
 
+/**
+ * The implementation of the {@linkcode RequestEvent} interface for Deno.
+ */
 class DenoRequestEvent<
   Env extends Record<string, string> = Record<string, string>,
 > implements RequestEvent<Env> {

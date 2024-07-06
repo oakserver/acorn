@@ -2,6 +2,9 @@
 
 import type { HttpMethod } from "@oak/commons/method";
 
+/**
+ * The interface that defines the Cloudflare Worker fetch handler.
+ */
 export interface CloudflareFetchHandler<
   Env extends Record<string, string> = Record<string, string>,
 > {
@@ -281,5 +284,5 @@ export interface Route<
     secure: boolean,
   ): Promise<Response | undefined>;
   /** Determines if the pathname and method are a match. */
-  matches(pathname: string, method: HttpMethod): boolean;
+  matches(method: HttpMethod, pathname: string): boolean;
 }

@@ -1,11 +1,21 @@
 {
   "name": "@oak/acorn",
-  "version": "1.0.0-alpha.5",
+  "version": "1.0.0-alpha.6",
   "exports": { ".": "./mod.ts" },
+  "publish": {
+    "exclude": [
+      "_examples",
+      ".github",
+      ".vscode",
+      "testing_utils.ts",
+      "**/*.test.ts",
+      "**/*.bench.ts"
+    ]
+  },
   "tasks": {
     "bench": "deno bench --allow-write --allow-read",
     "check": "deno check mod.ts",
-    "example": "deno run --allow-net --allow-env --allow-hrtime _examples/server.ts",
+    "example": "deno run --allow-net --allow-env --allow-hrtime --unstable-kv _examples/server.ts",
     "test": "deno test --allow-net --allow-env --allow-hrtime"
   },
   "imports": {

@@ -641,8 +641,8 @@ export class Router<
       for (route of this.#routes) {
         if (
           route.matches(
-            requestEvent.url.pathname,
             requestEvent.request.method as HttpMethod,
+            requestEvent.url.pathname,
           )
         ) {
           this.#logger.info(`${id} request matched`);
@@ -771,6 +771,9 @@ export class Router<
 
   /**
    * Define a route based on the provided descriptor.
+   *
+   * This provides a way to register a route with a specific method or set of
+   * methods, versus having to call the method specific to the HTTP method.
    */
   route<
     Path extends string,
@@ -829,6 +832,11 @@ export class Router<
       ResponseBody
     >,
   ): Removeable;
+  /**
+   * Register a handler provided in the init that will be invoked on when
+   * the specified path is matched along with the common HTTP methods of
+   * `GET`, `HEAD`, `OPTIONS`, `POST`, `PUT`, `PATCH`, and `DELETE`.
+   */
   all<
     Path extends string,
     Params extends ParamsDictionary | undefined = RouteParameters<Path>,
@@ -851,6 +859,14 @@ export class Router<
       ResponseBody
     >,
   ): Removeable;
+  /**
+   * Register a provider handler provided that will be invoked on when
+   * the specified path is matched along with the common HTTP methods of
+   * `GET`, `HEAD`, `OPTIONS`, `POST`, `PUT`, `PATCH`, and `DELETE`.
+   *
+   * Optional init can be supplied to adjust other aspects of how the route will
+   * work.
+   */
   all<
     Path extends string,
     Params extends ParamsDictionary | undefined = RouteParameters<Path>,
@@ -892,6 +908,10 @@ export class Router<
     );
   }
 
+  /**
+   * Register a handler provided in the descriptor that will be invoked on when
+   * the specified `.path` is matched along with the HTTP method of `GET`.
+   */
   get<
     Path extends string,
     Params extends ParamsDictionary | undefined = RouteParameters<Path>,
@@ -912,6 +932,10 @@ export class Router<
       ResponseBody
     >,
   ): Removeable;
+  /**
+   * Register a handler provided in the init that will be invoked on when
+   * the specified path is matched along with the HTTP method of `GET`.
+   */
   get<
     Path extends string,
     Params extends ParamsDictionary | undefined = RouteParameters<Path>,
@@ -932,6 +956,13 @@ export class Router<
       ResponseBody
     >,
   ): Removeable;
+  /**
+   * Register a handler that will be invoked on when the specified path is
+   * matched along with the HTTP method of `GET`.
+   *
+   * Additionally provide an optional init to adjust other aspects of how the
+   * route will work.
+   */
   get<
     Path extends string,
     Params extends ParamsDictionary | undefined = RouteParameters<Path>,
@@ -980,6 +1011,10 @@ export class Router<
     return this.#addRoute(["GET"], pathOrDescriptor, handlerOrInit, init);
   }
 
+  /**
+   * Register a handler provided in the descriptor that will be invoked on when
+   * the specified `.path` is matched along with the HTTP method of `HEAD`.
+   */
   head<
     Path extends string,
     Params extends ParamsDictionary | undefined = RouteParameters<Path>,
@@ -1000,6 +1035,10 @@ export class Router<
       ResponseBody
     >,
   ): Removeable;
+  /**
+   * Register a handler provided in the init that will be invoked on when
+   * the specified path is matched along with the HTTP method of `HEAD`.
+   */
   head<
     Path extends string,
     Params extends ParamsDictionary | undefined = RouteParameters<Path>,
@@ -1020,6 +1059,13 @@ export class Router<
       ResponseBody
     >,
   ): Removeable;
+  /**
+   * Register a handler that will be invoked on when the specified path is
+   * matched along with the HTTP method of `HEAD`.
+   *
+   * Additionally provide an optional init to adjust other aspects of how the
+   * route will work.
+   */
   head<
     Path extends string,
     Params extends ParamsDictionary | undefined = RouteParameters<Path>,
@@ -1068,6 +1114,10 @@ export class Router<
     return this.#addRoute(["HEAD"], pathOrDescriptor, handlerOrInit, init);
   }
 
+  /**
+   * Register a handler provided in the descriptor that will be invoked on when
+   * the specified `.path` is matched along with the HTTP method of `OPTIONS`.
+   */
   options<
     Path extends string,
     Params extends ParamsDictionary | undefined = RouteParameters<Path>,
@@ -1090,6 +1140,10 @@ export class Router<
       ResponseBody
     >,
   ): Removeable;
+  /**
+   * Register a handler provided in the init that will be invoked on when
+   * the specified path is matched along with the HTTP method of `OPTIONS`.
+   */
   options<
     Path extends string,
     Params extends ParamsDictionary | undefined = RouteParameters<Path>,
@@ -1112,6 +1166,13 @@ export class Router<
       ResponseBody
     >,
   ): Removeable;
+  /**
+   * Register a handler that will be invoked on when the specified path is
+   * matched along with the HTTP method of `OPTIONS`.
+   *
+   * Additionally provide an optional init to adjust other aspects of how the
+   * route will work.
+   */
   options<
     Path extends string,
     Params extends ParamsDictionary | undefined = RouteParameters<Path>,
@@ -1162,6 +1223,10 @@ export class Router<
     return this.#addRoute(["PATCH"], pathOrDescriptor, handlerOrInit, init);
   }
 
+  /**
+   * Register a handler provided in the descriptor that will be invoked on when
+   * the specified `.path` is matched along with the HTTP method of `POST`.
+   */
   post<
     Path extends string,
     Params extends ParamsDictionary | undefined = RouteParameters<Path>,
@@ -1184,6 +1249,10 @@ export class Router<
       ResponseBody
     >,
   ): Removeable;
+  /**
+   * Register a handler provided in the init that will be invoked on when
+   * the specified path is matched along with the HTTP method of `POST`.
+   */
   post<
     Path extends string,
     Params extends ParamsDictionary | undefined = RouteParameters<Path>,
@@ -1206,6 +1275,13 @@ export class Router<
       ResponseBody
     >,
   ): Removeable;
+  /**
+   * Register a handler that will be invoked on when the specified path is
+   * matched along with the HTTP method of `GET`.
+   *
+   * Additionally provide an optional init to adjust other aspects of how the
+   * route will work.
+   */
   post<
     Path extends string,
     Params extends ParamsDictionary | undefined = RouteParameters<Path>,
@@ -1256,6 +1332,10 @@ export class Router<
     return this.#addRoute(["POST"], pathOrDescriptor, handlerOrInit, init);
   }
 
+  /**
+   * Register a handler provided in the descriptor that will be invoked on when
+   * the specified `.path` is matched along with the HTTP method of `PUT`.
+   */
   put<
     Path extends string,
     Params extends ParamsDictionary | undefined = RouteParameters<Path>,
@@ -1278,6 +1358,10 @@ export class Router<
       ResponseBody
     >,
   ): Removeable;
+  /**
+   * Register a handler provided in the init that will be invoked on when
+   * the specified path is matched along with the HTTP method of `PUT`.
+   */
   put<
     Path extends string,
     Params extends ParamsDictionary | undefined = RouteParameters<Path>,
@@ -1300,6 +1384,13 @@ export class Router<
       ResponseBody
     >,
   ): Removeable;
+  /**
+   * Register a handler that will be invoked on when the specified path is
+   * matched along with the HTTP method of `PUT`.
+   *
+   * Additionally provide an optional init to adjust other aspects of how the
+   * route will work.
+   */
   put<
     Path extends string,
     Params extends ParamsDictionary | undefined = RouteParameters<Path>,
@@ -1350,6 +1441,10 @@ export class Router<
     return this.#addRoute(["PUT"], pathOrDescriptor, handlerOrInit, init);
   }
 
+  /**
+   * Register a handler provided in the descriptor that will be invoked on when
+   * the specified `.path` is matched along with the HTTP method of `PATCH`.
+   */
   patch<
     Path extends string,
     Params extends ParamsDictionary | undefined = RouteParameters<Path>,
@@ -1372,6 +1467,10 @@ export class Router<
       ResponseBody
     >,
   ): Removeable;
+  /**
+   * Register a handler provided in the init that will be invoked on when
+   * the specified path is matched along with the HTTP method of `PATCH`.
+   */
   patch<
     Path extends string,
     Params extends ParamsDictionary | undefined = RouteParameters<Path>,
@@ -1394,6 +1493,13 @@ export class Router<
       ResponseBody
     >,
   ): Removeable;
+  /**
+   * Register a handler that will be invoked on when the specified path is
+   * matched along with the HTTP method of `PATCH`.
+   *
+   * Additionally provide an optional init to adjust other aspects of how the
+   * route will work.
+   */
   patch<
     Path extends string,
     Params extends ParamsDictionary | undefined = RouteParameters<Path>,
@@ -1444,6 +1550,10 @@ export class Router<
     return this.#addRoute(["PATCH"], pathOrDescriptor, handlerOrInit, init);
   }
 
+  /**
+   * Register a handler provided in the descriptor that will be invoked on when
+   * the specified `.path` is matched along with the HTTP method of `DELETE`.
+   */
   delete<
     Path extends string,
     Params extends ParamsDictionary | undefined = RouteParameters<Path>,
@@ -1466,6 +1576,10 @@ export class Router<
       ResponseBody
     >,
   ): Removeable;
+  /**
+   * Register a handler provided in the init that will be invoked on when
+   * the specified path is matched along with the HTTP method of `DELETE`.
+   */
   delete<
     Path extends string,
     Params extends ParamsDictionary | undefined = RouteParameters<Path>,
@@ -1488,6 +1602,13 @@ export class Router<
       ResponseBody
     >,
   ): Removeable;
+  /**
+   * Register a handler that will be invoked on when the specified path is
+   * matched along with the HTTP method of `DELETE`.
+   *
+   * Additionally provide an optional init to adjust other aspects of how the
+   * route will work.
+   */
   delete<
     Path extends string,
     Params extends ParamsDictionary | undefined = RouteParameters<Path>,
@@ -1538,6 +1659,11 @@ export class Router<
     return this.#addRoute(["PATCH"], pathOrDescriptor, handlerOrInit, init);
   }
 
+  /**
+   * Register a status route handler that will be invoked when the response
+   * status matches the provided status or {@linkcode StatusRange} based on the
+   * provided descriptor.
+   */
   on<
     S extends Status = Status,
     QSSchema extends QueryStringSchema = QueryStringSchema,
@@ -1545,6 +1671,12 @@ export class Router<
   >(
     descriptor: StatusRouteDescriptor<S, Env, QSSchema, QueryParams>,
   ): Removeable;
+  /**
+   * Register a status route handler that will be invoked when the response
+   * status matches the provided status.
+   *
+   * An optional init can be provided to configure additional options.
+   */
   on<
     S extends Status,
     QSSchema extends QueryStringSchema = QueryStringSchema,
@@ -1554,6 +1686,12 @@ export class Router<
     handler: StatusHandler<S, Env, QueryStringSchema, QueryParams>,
     init?: StatusRouteInit<QSSchema>,
   ): Removeable;
+  /**
+   * Register a status route handler that will be invoked when the response
+   * status matches the provided {@linkcode StatusRange}.
+   *
+   * An optional init can be provided to configure additional options.
+   */
   on<
     QSSchema extends QueryStringSchema = QueryStringSchema,
     QueryParams extends InferOutput<QSSchema> = InferOutput<QSSchema>,
@@ -1622,7 +1760,7 @@ export class Router<
    */
   match(method: HttpMethod, path: string): Route | undefined {
     for (const route of this.#routes) {
-      if (route.matches(path, method)) {
+      if (route.matches(method, path)) {
         return route;
       }
     }

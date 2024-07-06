@@ -255,7 +255,7 @@ export class PathRoute<
   /**
    * Determines if the request should be handled by the route.
    */
-  matches(pathname: string, method: HttpMethod): boolean {
+  matches(method: HttpMethod, pathname: string): boolean {
     if (this.#methods.includes(method)) {
       const match = pathname.match(this.#regex);
       if (match) {

@@ -11,6 +11,10 @@ import { createPromiseWithResolvers } from "./utils.ts";
 
 const instance = hyperid({ urlSafe: true });
 
+/**
+ * The implementation of the {@linkcode RequestEvent} interface for Cloudflare
+ * Workers.
+ */
 export class CloudflareWorkerRequestEvent<
   Env extends Record<string, string> = Record<string, string>,
 > implements RequestEvent<Env> {

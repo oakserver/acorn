@@ -77,6 +77,9 @@ declare const Bun: Bun;
 
 const instance = hyperid({ urlSafe: true });
 
+/**
+ * The implementation of the {@linkcode RequestEvent} interface for Bun.
+ */
 class BunRequestEvent<
   Env extends Record<string, string> = Record<string, string>,
 > implements RequestEvent<Env> {
@@ -202,6 +205,9 @@ class BunRequestEvent<
   }
 }
 
+/**
+ * A request server that uses the Bun HTTP server to handle requests.
+ */
 export default class BunRequestServer<
   Env extends Record<string, string> = Record<string, string>,
 > implements RequestServer<Env> {

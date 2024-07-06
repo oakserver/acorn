@@ -16,6 +16,9 @@ import { createPromiseWithResolvers } from "./utils.ts";
 
 const instance = hyperid({ urlSafe: true });
 
+/**
+ * The implementation of the {@linkcode RequestEvent} interface for Node.js.
+ */
 class NodeRequestEvent<Env extends Record<string, string>>
   implements RequestEvent<Env> {
   #id = instance();
@@ -197,6 +200,9 @@ class NodeRequestEvent<Env extends Record<string, string>>
   }
 }
 
+/**
+ * The implementation of the {@linkcode RequestServer} interface for Node.js.
+ */
 export default class NodeRequestServer<
   Env extends Record<string, string> = Record<string, string>,
 > implements RequestServer<Env> {
