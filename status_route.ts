@@ -114,6 +114,7 @@ export class StatusRoute<
   QSSchema extends QueryStringSchema = QueryStringSchema,
   QueryParams extends InferOutput<QSSchema> = InferOutput<QSSchema>,
 > {
+  #expose: boolean;
   #handler: StatusHandler<Status, Env, QSSchema, QueryParams>;
   #keys?: KeyRing;
   #schema: Schema<QSSchema, BodySchema, BodySchema>;
@@ -130,12 +131,14 @@ export class StatusRoute<
     status: (Status | StatusRange)[],
     handler: StatusHandler<Status, Env, QSSchema, QueryParams>,
     schemaDescriptor: SchemaDescriptor<QSSchema, BodySchema, BodySchema>,
-    keys?: KeyRing,
+    keys: KeyRing | undefined,
+    expose: boolean,
   ) {
     this.#status = status;
     this.#handler = handler;
     this.#keys = keys;
-    this.#schema = new Schema(schemaDescriptor);
+    this.#expose = expose;
+    this.#schema = new Schema(schemaDescriptor, expose);
   }
 
   /**
@@ -163,6 +166,7 @@ export class StatusRoute<
       undefined,
       this.#schema,
       this.#keys,
+      this.#expose,
     );
     const result = await this.#handler(context, response.status, response);
     if (result instanceof Response) {

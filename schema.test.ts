@@ -2,8 +2,8 @@
 
 import { isHttpError } from "@oak/commons/http_errors";
 import { assert } from "@std/assert/assert";
-import { assertEquals } from "@std/assert/assert-equals";
-import { assertRejects } from "@std/assert/assert-rejects";
+import { assertEquals } from "@std/assert/equals";
+import { assertRejects } from "@std/assert/rejects";
 import * as v from "@valibot/valibot";
 import { MockRequestEvent } from "./testing_utils.ts";
 
@@ -12,7 +12,7 @@ import { Schema } from "./schema.ts";
 Deno.test({
   name: "Schema - empty schema should passthrough values for querystring",
   async fn() {
-    const schema = new Schema();
+    const schema = new Schema(undefined, false);
     const requestEvent = new MockRequestEvent("http://localhost/?a=1&b=2", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -26,7 +26,7 @@ Deno.test({
 Deno.test({
   name: "Schema - empty schema should passthrough values for body",
   async fn() {
-    const schema = new Schema();
+    const schema = new Schema(undefined, false);
     const requestEvent = new MockRequestEvent("http://localhost/?a=1&b=2", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -40,7 +40,7 @@ Deno.test({
 Deno.test({
   name: "Schema - empty schema should passthrough values for response",
   async fn() {
-    const schema = new Schema();
+    const schema = new Schema(undefined, false);
     const result = await schema.validateResponse({ hello: "world" });
     assertEquals(result, { output: { hello: "world" } });
   },
@@ -51,7 +51,7 @@ Deno.test({
   async fn() {
     const schema = new Schema({
       querystring: v.object({ a: v.string(), b: v.string() }),
-    });
+    }, false);
     const requestEvent = new MockRequestEvent("http://localhost/?a=1&b=2", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -65,7 +65,7 @@ Deno.test({
 Deno.test({
   name: "Schema - body schema should validate body",
   async fn() {
-    const schema = new Schema({ body: v.object({ c: v.number() }) });
+    const schema = new Schema({ body: v.object({ c: v.number() }) }, false);
     const requestEvent = new MockRequestEvent("http://localhost/?a=1&b=2", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -79,7 +79,10 @@ Deno.test({
 Deno.test({
   name: "Schema - response schema should validate response",
   async fn() {
-    const schema = new Schema({ response: v.object({ hello: v.string() }) });
+    const schema = new Schema(
+      { response: v.object({ hello: v.string() }) },
+      false,
+    );
     const result = await schema.validateResponse({ hello: "world" });
     assertEquals(result, { output: { hello: "world" } });
   },
@@ -90,7 +93,7 @@ Deno.test({
   async fn() {
     const schema = new Schema({
       querystring: v.object({ a: v.string(), b: v.string() }),
-    });
+    }, false);
     const requestEvent = new MockRequestEvent("http://localhost/?a=1", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -107,7 +110,7 @@ Deno.test({
 Deno.test({
   name: "Schema - invalid body should reject with 400",
   async fn() {
-    const schema = new Schema({ body: v.object({ c: v.string() }) });
+    const schema = new Schema({ body: v.object({ c: v.string() }) }, false);
     const requestEvent = new MockRequestEvent("http://localhost/?a=1&b=2", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -124,7 +127,10 @@ Deno.test({
 Deno.test({
   name: "Schema - invalid response should should reject with 500",
   async fn() {
-    const schema = new Schema({ response: v.object({ hello: v.number() }) });
+    const schema = new Schema(
+      { response: v.object({ hello: v.number() }) },
+      false,
+    );
     const error = await assertRejects(async () => {
       await schema.validateResponse({ hello: "world" });
     });
@@ -143,7 +149,7 @@ Deno.test({
         assertEquals(issues.length, 1);
         return new Response("Invalid querystring", { status: 400 });
       },
-    });
+    }, false);
     const requestEvent = new MockRequestEvent("http://localhost/?a=1", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -165,7 +171,7 @@ Deno.test({
         assertEquals(issues.length, 1);
         return new Response("Invalid querystring", { status: 400 });
       },
-    });
+    }, false);
     const requestEvent = new MockRequestEvent("http://localhost/?a=1", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -187,7 +193,7 @@ Deno.test({
         assertEquals(issues.length, 1);
         return new Response("Invalid querystring", { status: 400 });
       },
-    });
+    }, false);
     const result = await schema.validateResponse({ hello: "world" });
     assert(result.invalidResponse instanceof Response);
     assertEquals(result.invalidResponse.status, 400);
@@ -202,7 +208,7 @@ Deno.test({
       invalidHandler() {
         throw new Error("Boom");
       },
-    });
+    }, false);
     const requestEvent = new MockRequestEvent("http://localhost/?a=1", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -226,7 +232,7 @@ Deno.test({
       invalidHandler() {
         throw new Error("Boom");
       },
-    });
+    }, false);
     const requestEvent = new MockRequestEvent("http://localhost/?a=1", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -250,7 +256,7 @@ Deno.test({
       invalidHandler() {
         throw new Error("Boom");
       },
-    });
+    }, false);
     const error = await assertRejects(async () => {
       await schema.validateResponse({ hello: "world" });
     });

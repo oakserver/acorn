@@ -1826,6 +1826,7 @@ export class Router<
       handler,
       schemaDescriptor,
       this.#keys,
+      this.#expose,
     );
     this.#logger.debug(`adding status route for ${status.join(", ")}`);
     this.#statusRoutes.add(route);

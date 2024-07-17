@@ -1,6 +1,6 @@
 // Copyright 2018-2024 the oak authors. All rights reserved.
 
-import { assertEquals } from "@std/assert/assert-equals";
+import { assertEquals } from "@std/assert/equals";
 import DenoServer from "./request_server_deno.ts";
 
 Deno.test({
