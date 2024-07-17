@@ -6,3 +6,4 @@ export const BODYLESS_METHODS = ["GET", "HEAD"];
 export const CONTENT_TYPE_HTML = contentType("html")!;
 export const CONTENT_TYPE_JSON = contentType("json")!;
 export const CONTENT_TYPE_TEXT = contentType("text/plain")!;
+export const NOT_ALLOWED = Symbol.for("acorn.NotAllowed");

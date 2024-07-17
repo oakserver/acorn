@@ -1,6 +1,7 @@
 // Copyright 2018-2024 the oak authors. All rights reserved.
 
 import type { HttpMethod } from "@oak/commons/method";
+import type { NOT_ALLOWED } from "./constants.ts";
 
 /**
  * The interface that defines the Cloudflare Worker fetch handler.
@@ -268,6 +269,8 @@ export type RouteParameters<Route extends string> = string extends Route
   // deno-lint-ignore ban-types
   : {};
 
+export type NotAllowed = typeof NOT_ALLOWED;
+
 /** The abstract interface that needs to be implemented for a route. */
 export interface Route<
   Env extends Record<string, string> = Record<string, string>,
@@ -284,5 +287,5 @@ export interface Route<
     secure: boolean,
   ): Promise<Response | undefined>;
   /** Determines if the pathname and method are a match. */
-  matches(method: HttpMethod, pathname: string): boolean;
+  matches(method: HttpMethod, pathname: string): boolean | NotAllowed;
 }

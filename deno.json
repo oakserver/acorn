@@ -19,12 +19,12 @@
     "test": "deno test --allow-net --allow-env --allow-hrtime"
   },
   "imports": {
-    "@oak/commons": "jsr:@oak/commons@^0.12",
-    "@std/assert": "jsr:@std/assert@^0.226",
+    "@oak/commons": "jsr:@oak/commons@^0.13",
+    "@std/assert": "jsr:@std/assert@^1.0",
     "@std/http": "jsr:@std/http@^0.224",
-    "@std/log": "jsr:@std/log@^0.224.3",
+    "@std/log": "jsr:@std/log@^0.224",
     "@std/media-types": "jsr:@std/media-types@^1.0",
-    "@valibot/valibot": "jsr:@valibot/valibot@^0.35",
+    "@valibot/valibot": "jsr:@valibot/valibot@^0.36",
     "hyperid": "npm:hyperid@^3.2",
     "path-to-regexp": "npm:path-to-regexp@^7.0",
     "qs": "npm:qs@^6.12"

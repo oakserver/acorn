@@ -137,18 +137,23 @@ export class Schema<
   ResSchema extends BodySchema,
 > {
   #body?: BSchema;
+  #expose: boolean;
   #invalidHandler?: InvalidHandler<QSSchema, BSchema, ResSchema>;
   #logger = getLogger("acorn.schema");
   #options?: ValidationOptions<QSSchema | BSchema | ResSchema>;
   #querystring?: QSSchema;
   #response?: ResSchema;
 
-  constructor(descriptor: SchemaDescriptor<QSSchema, BSchema, ResSchema> = {}) {
+  constructor(
+    descriptor: SchemaDescriptor<QSSchema, BSchema, ResSchema> = {},
+    expose: boolean,
+  ) {
     this.#querystring = descriptor.querystring;
     this.#body = descriptor.body;
     this.#response = descriptor.response;
     this.#options = descriptor.options;
     this.#invalidHandler = descriptor.invalidHandler;
+    this.#expose = expose;
   }
 
   /**
@@ -181,7 +186,7 @@ export class Schema<
       } else {
         try {
           this.#logger
-            .info(`${id} querystring is invalid, calling invalid handler.`);
+            .debug(`${id} querystring is invalid, calling invalid handler.`);
           return {
             invalidResponse: await this.#invalidHandler(
               "querystring",
@@ -204,9 +209,10 @@ export class Schema<
           output: await parseAsync(this.#querystring, input, this.#options),
         };
       } catch (cause) {
-        this.#logger.info(`${id} querystring is invalid.`);
+        this.#logger.debug(`${id} querystring is invalid.`);
         throw createHttpError(Status.BadRequest, "Invalid querystring", {
           cause,
+          expose: this.#expose,
         });
       }
     }
@@ -245,7 +251,7 @@ export class Schema<
       } else {
         try {
           this.#logger
-            .info(
+            .debug(
               `${requestEvent.id} body is invalid, calling invalid handler.`,
             );
           return {
@@ -270,8 +276,11 @@ export class Schema<
           output: await parseAsync(this.#body, input, this.#options),
         };
       } catch (cause) {
-        this.#logger.info(`${requestEvent.id} body is invalid.`);
-        throw createHttpError(Status.BadRequest, "Invalid body", { cause });
+        this.#logger.debug(`${requestEvent.id} body is invalid.`);
+        throw createHttpError(Status.BadRequest, "Invalid body", {
+          cause,
+          expose: this.#expose,
+        });
       }
     }
   }

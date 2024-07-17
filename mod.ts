@@ -161,6 +161,34 @@
  * the request. If a query parameter schema is provided to the route, the query
  * parameters will be validated against that schema before being returned.
  *
+ * ### `throw()`
+ *
+ * A method which can be used to throw an HTTP error which will be caught by the
+ * router and handled appropriately. The method takes a status code and an
+ * optional message which will be sent to the client.
+ *
+ * ### `created()`
+ *
+ * A method which returns a {@linkcode Response} with a `201 Created` status
+ * code. The method takes the body of the response and an optional object with
+ * options for the response.
+ *
+ * This is an appropriate response when a `POST` request is made to a resource
+ * collection and the resource is created successfully. The options should be
+ * included with a `location` property set to the URL of the created resource.
+ * The `params` property can be used to provide parameters to the URL.
+ * For example if `location` is `/books/:id` and `params` is `{ id: 1 }`
+ * the URL will be `/books/1`.
+ *
+ * ### `conflict()`
+ *
+ * A method which throws a `409 Conflict` error and takes an optional message
+ * and optional cause.
+ *
+ * This is an appropriate response when a `PUT` request is made to a resource
+ * that cannot be updated because it is in a state that conflicts with the
+ * request.
+ *
  * ### `sendEvents()`
  *
  * A method which starts sending server-sent events to the client. This method
@@ -351,6 +379,60 @@
  * called when the schema validation fails. This allows you to provide a custom
  * response to the client when the request does not match the schema.
  *
+ * ## RESTful JSON Services
+ *
+ * acorn is designed to make it easy to create RESTful JSON services. The router
+ * provides a simple and expressive way to define routes and has several
+ * features which make it easy to create production ready services.
+ *
+ * ### HTTP Errors
+ *
+ * acorn provides a mechanism for throwing HTTP errors from route handlers. The
+ * `throw()` method on the context object can be used to throw an HTTP error.
+ * HTTP errors are caught by the router and handled appropriately. The router
+ * will send a response to the client with the status code and message provided
+ * to the `throw()` method with the body of the response respecting the content
+ * negotiation headers provided by the client.
+ *
+ * ### No Content Responses
+ *
+ * If a handler returns `undefined`, the router will send a `204 No Content`
+ * response to the client. This is useful when a request is successful but there
+ * is no content to return to the client.
+ *
+ * No content responses are appropriate for `PUT` or `PATCH` requests that are
+ * successful but you do not want to return the updated resource to the client.
+ *
+ * ### Created Responses
+ *
+ * The `created()` method on the context object can be used to send a `201
+ * Created` response to the client. This is appropriate when a `POST` request is
+ * made to a resource collection and the resource is created successfully. The
+ * method takes the body of the response and an optional object with options for
+ * the response.
+ *
+ * The options should be included with a `location` property set to the URL of
+ * the created resource. The `params` property can be used to provide parameters
+ * to the URL. For example if `location` is `/books/:id` and `params` is
+ * `{ id: 1 }` the URL will be `/books/1`.
+ *
+ * ### Conflict Responses
+ *
+ * The `conflict()` method on the context object can be used to throw a `409
+ * Conflict` error. This is appropriate when a `PUT` request is made to a
+ * resource that cannot be updated because it is in a state that conflicts with
+ * the request.
+ *
+ * ### Redirect Responses
+ *
+ * If you need to redirect the client to a different URL, you can use the
+ * `redirect()` method on the context object. This method takes a URL and an
+ * optional status code and will send a redirect response to the client.
+ *
+ * In addition, if the `location` is a path with parameters, you can provide the
+ * `params` object to the `redirect()` method which will be used to populate the
+ * parameters in the URL.
+ *
  * ## Logging
  *
  * acorn integrates the [LogTape](https://jsr.io/@logtape/logtape) library to
@@ -385,6 +467,15 @@
  */
 export * as v from "@valibot/valibot";
 export type { ServerSentEventTarget } from "@oak/commons/server_sent_event";
+export {
+  type ClientErrorStatus,
+  type ErrorStatus,
+  type InformationalStatus,
+  type RedirectStatus,
+  type ServerErrorStatus,
+  Status,
+  type SuccessfulStatus,
+} from "@oak/commons/status";
 
 export type { Context } from "./context.ts";
 export type { LoggerOptions } from "./logger.ts";

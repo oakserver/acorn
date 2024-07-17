@@ -7,21 +7,23 @@ import { Status, STATUS_TEXT } from "@oak/commons/status";
 import { type Key, pathToRegexp } from "path-to-regexp";
 import type { InferOutput } from "@valibot/valibot";
 
+import { NOT_ALLOWED } from "./constants.ts";
 import { Context } from "./context.ts";
 import { getLogger, type Logger } from "./logger.ts";
-import type {
-  ParamsDictionary,
-  RequestEvent,
-  Route,
-  RouteParameters,
-} from "./types.ts";
-import { appendHeaders, decodeComponent } from "./utils.ts";
 import {
   type BodySchema,
   type QueryStringSchema,
   Schema,
   type SchemaDescriptor,
 } from "./schema.ts";
+import type {
+  NotAllowed,
+  ParamsDictionary,
+  RequestEvent,
+  Route,
+  RouteParameters,
+} from "./types.ts";
+import { appendHeaders, decodeComponent } from "./utils.ts";
 
 /**
  * A function that handles a route. The handler is provided a
@@ -98,6 +100,7 @@ export class PathRoute<
   ResSchema extends BodySchema = BodySchema,
   ResponseBody extends InferOutput<ResSchema> = InferOutput<ResSchema>,
 > implements Route<Env> {
+  #expose: boolean;
   #handler: RouteHandler<
     Env,
     Params,
@@ -171,13 +174,15 @@ export class PathRoute<
       ResponseBody
     >,
     keys: KeyRing | undefined,
+    expose: boolean,
     options?: RouteOptions,
   ) {
     this.#path = path;
     this.#methods = methods;
-    this.#schema = new Schema(schemaDescriptor);
+    this.#schema = new Schema(schemaDescriptor, expose);
     this.#handler = handler;
     this.#keys = keys;
+    this.#expose = expose;
     this.#regex = pathToRegexp(path, options);
     this.#paramKeys = this.#regex.keys;
     this.#logger = getLogger("acorn.route");
@@ -216,6 +221,7 @@ export class PathRoute<
       this.#params,
       this.#schema,
       this.#keys,
+      this.#expose,
     );
     this.#logger.debug(`[${this.#path}] ${requestEvent.id} calling handler`);
     const result = await this.#handler(context);
@@ -255,24 +261,25 @@ export class PathRoute<
   /**
    * Determines if the request should be handled by the route.
    */
-  matches(method: HttpMethod, pathname: string): boolean {
-    if (this.#methods.includes(method)) {
-      const match = pathname.match(this.#regex);
-      if (match) {
-        this.#logger
-          .debug(`[${this.#path}] route matched: ${method} ${pathname}`);
-        const params = {} as Params;
-        const captures = match.slice(1);
-        for (let i = 0; i < captures.length; i++) {
-          if (this.#paramKeys[i]) {
-            const capture = captures[i];
-            (params as Record<string, string>)[this.#paramKeys[i].name] =
-              decodeComponent(capture);
-          }
-        }
-        this.#params = params;
-        return true;
+  matches(method: HttpMethod, pathname: string): boolean | NotAllowed {
+    const match = pathname.match(this.#regex);
+    if (match) {
+      if (!this.#methods.includes(method)) {
+        return NOT_ALLOWED;
       }
+      this.#logger
+        .debug(`[${this.#path}] route matched: ${method} ${pathname}`);
+      const params = {} as Params;
+      const captures = match.slice(1);
+      for (let i = 0; i < captures.length; i++) {
+        if (this.#paramKeys[i]) {
+          const capture = captures[i];
+          (params as Record<string, string>)[this.#paramKeys[i].name] =
+            decodeComponent(capture);
+        }
+      }
+      this.#params = params;
+      return true;
     }
     return false;
   }

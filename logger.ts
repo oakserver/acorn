@@ -11,6 +11,7 @@ import {
   RotatingFileHandler,
   setup,
 } from "@std/log";
+import { isBun, isNode } from "./utils.ts";
 
 export { type Logger } from "@std/log";
 
@@ -61,9 +62,25 @@ export interface LoggerOptions {
   stream?: { level?: LevelName; stream: WritableStream };
 }
 
-export const formatter: FormatterFunction = (
-  { datetime, levelName, loggerName, msg },
-) => `${datetime.toISOString()} [${levelName}] ${loggerName}: ${msg}`;
+let inspect: (value: unknown) => string;
+
+if (typeof globalThis?.Deno?.inspect === "function") {
+  inspect = Deno.inspect;
+} else {
+  inspect = (value) => JSON.stringify(value);
+  if (isNode() || isBun()) {
+    import("node:util").then(({ inspect: nodeInspect }) => {
+      inspect = nodeInspect;
+    });
+  }
+}
+
+const formatter: FormatterFunction = (
+  { datetime, levelName, loggerName, msg, args },
+) =>
+  `${datetime.toISOString()} [${levelName}] ${loggerName}: ${msg} ${
+    args.map((arg) => inspect(arg)).join(" ")
+  }`;
 
 const mods = [
   "acorn.context",
