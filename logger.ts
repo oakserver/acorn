@@ -1,7 +1,8 @@
 // Copyright 2018-2024 the oak authors. All rights reserved.
 
 import {
-  type BaseHandler,
+  BaseHandler,
+  type BaseHandlerOptions,
   ConsoleHandler,
   type FormatterFunction,
   getLogger as gl,
@@ -82,6 +83,29 @@ const formatter: FormatterFunction = (
     args.map((arg) => inspect(arg)).join(" ")
   }`;
 
+const encoder = new TextEncoder();
+
+class StreamHandler extends BaseHandler {
+  #writer: WritableStreamDefaultWriter<Uint8Array>;
+
+  constructor(
+    levelName: LevelName,
+    stream: WritableStream<Uint8Array>,
+    options?: BaseHandlerOptions,
+  ) {
+    super(levelName, options);
+    this.#writer = stream.getWriter();
+  }
+
+  log(msg: string): void {
+    this.#writer.write(encoder.encode(msg + "\n"));
+  }
+
+  override destroy(): void {
+    this.#writer.close();
+  }
+}
+
 const mods = [
   "acorn.context",
   "acorn.request_event_cfw",
@@ -130,12 +154,12 @@ export function configure(options?: LoggerOptions): void {
       handlers.push("file");
     }
     if (options.stream) {
-      //   sinks.stream = getStreamSink(options.stream.stream);
-      //   loggers.push({
-      //     category: ["acorn"],
-      //     sinks: ["stream"],
-      //     level: options.stream.level ?? "info",
-      //   });
+      config.handlers.stream = new StreamHandler(
+        options.stream.level ?? "INFO",
+        options.stream.stream,
+        { formatter },
+      );
+      handlers.push("stream");
     }
   } else {
     config.handlers.console = new ConsoleHandler("WARN", { formatter });

@@ -50,6 +50,11 @@ import type {
 } from "./schema.ts";
 import { NOT_ALLOWED } from "./constants.ts";
 
+/**
+ * The description of a route which can be used when registering a route with
+ * the {@linkcode Router}, which incorporates the path, handler, and other
+ * route specific options.
+ */
 export interface RouteDescriptor<
   Path extends string,
   Env extends Record<string, string> = Record<string, string>,
@@ -1870,7 +1875,7 @@ export class Router<
       secure,
       onListen,
     } = options;
-    this.#logger.debug(`listen options: ${options}`);
+    this.#logger.debug(`listen options:`, options);
     const abortController = new AbortController();
     signal?.addEventListener("abort", async () => {
       this.#logger.debug(`closing server`);
