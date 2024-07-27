@@ -90,22 +90,6 @@ export class CloudflareWorkerRequestEvent<
     this.#resolve(response);
   }
 
-  [Symbol.for("Deno.customInspect")](
-    inspect: (value: unknown) => string,
-  ): string {
-    return `${this.constructor.name} ${
-      inspect({
-        addr: this.#addr,
-        env: this.#env,
-        id: this.#id,
-        request: this.#request,
-        responded: this.#responded,
-        response: this.#response,
-        url: this.#url,
-      })
-    }`;
-  }
-
   [Symbol.for("nodejs.util.inspect.custom")](
     depth: number,
     // deno-lint-ignore no-explicit-any

@@ -156,22 +156,6 @@ class NodeRequestEvent<Env extends Record<string, string>>
     this.#resolve(response);
   }
 
-  [Symbol.for("Deno.customInspect")](
-    inspect: (value: unknown) => string,
-  ): string {
-    return `${this.constructor.name} ${
-      inspect({
-        addr: this.addr,
-        env: this.env,
-        id: this.#id,
-        request: this.#request,
-        responded: this.#responded,
-        response: this.#promise,
-        url: this.#url,
-      })
-    }`;
-  }
-
   [Symbol.for("nodejs.util.inspect.custom")](
     depth: number,
     // deno-lint-ignore no-explicit-any
@@ -300,12 +284,6 @@ export default class NodeRequestServer<
       throw new TypeError("Server hasn't started listening.");
     }
     return this.#stream[Symbol.asyncIterator]();
-  }
-
-  [Symbol.for("Deno.customInspect")](
-    inspect: (value: unknown) => string,
-  ): string {
-    return `${this.constructor.name} ${inspect({ closed: this.#closed })}`;
   }
 
   [Symbol.for("nodejs.util.inspect.custom")](

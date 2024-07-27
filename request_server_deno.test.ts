@@ -4,7 +4,7 @@ import { assertEquals } from "@std/assert/equals";
 import DenoServer from "./request_server_deno.ts";
 
 Deno.test({
-  name: "DenoServer should be closed initially",
+  name: "DenoServer - should be closed initially",
   fn() {
     const { signal } = new AbortController();
     const server = new DenoServer({ signal });

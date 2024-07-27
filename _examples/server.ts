@@ -1,5 +1,25 @@
 // Copyright 2018-2024 the oak authors. All rights reserved.
 
+/**
+ * This is a simple example of a REST API using acorn and Deno KV storage.
+ *
+ * It contains the following routes:
+ *
+ * - `GET /` - A simple route that increments a count in a cookie and returns
+ *   the count.
+ * - `GET /redirect` - A route that redirects to `/book/1` using route
+ *   parameters.
+ * - `GET /book` - A route that returns a list of all books.
+ * - `GET /book/:id` - A route that returns a single book by its id.
+ * - `POST /book` - A route that creates a new book.
+ * - `PUT /book/:id` - A route that updates a book by its id, you must put a
+ *   full book object in the body.
+ * - `PATCH /book/:id` - A route that updates a book by its id.
+ * - `DELETE /book/:id` - A route that deletes a book by its id.
+ *
+ * @module
+ */
+
 import { Router, Status, v } from "../mod.ts";
 import { assert } from "@oak/commons/assert";
 

@@ -161,22 +161,6 @@ class BunRequestEvent<
     this.#resolve(response);
   }
 
-  [Symbol.for("Deno.customInspect")](
-    inspect: (value: unknown) => string,
-  ): string {
-    return `${this.constructor.name} ${
-      inspect({
-        addr: this.#addr,
-        env: this.env,
-        id: this.#id,
-        request: this.#request,
-        responded: this.#responded,
-        response: this.#response,
-        url: this.#url,
-      })
-    }`;
-  }
-
   [Symbol.for("nodejs.util.inspect.custom")](
     depth: number,
     // deno-lint-ignore no-explicit-any
@@ -277,5 +261,24 @@ export default class BunRequestServer<
       );
     }
     return this.#stream[Symbol.asyncIterator]();
+  }
+
+  [Symbol.for("nodejs.util.inspect.custom")](
+    depth: number,
+    // deno-lint-ignore no-explicit-any
+    options: any,
+    inspect: (value: unknown, options?: unknown) => string,
+    // deno-lint-ignore no-explicit-any
+  ): any {
+    if (depth < 0) {
+      return options.stylize(`[${this.constructor.name}]`, "special");
+    }
+
+    const newOptions = Object.assign({}, options, {
+      depth: options.depth === null ? null : options.depth - 1,
+    });
+    return `${options.stylize(this.constructor.name, "special")} ${
+      inspect({ closed: this.#closed }, newOptions)
+    }`;
   }
 }
