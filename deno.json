@@ -26,7 +26,7 @@
     "@std/media-types": "jsr:@std/media-types@^1.0",
     "@valibot/valibot": "jsr:@valibot/valibot@^0.36",
     "hyperid": "npm:hyperid@^3.2",
-    "path-to-regexp": "npm:path-to-regexp@^7.0",
+    "path-to-regexp": "npm:path-to-regexp@^7.1",
     "qs": "npm:qs@^6.12"
   },
   "fmt": { "exclude": ["README.md"] },

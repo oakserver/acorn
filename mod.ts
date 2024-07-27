@@ -128,16 +128,10 @@
  *
  * The Fetch API standard {@linkcode Request} object which should be handled.
  *
- * ### `responded`
+ * ### `responseHeaders`
  *
- * A boolean value indicating whether the request has been responded to. This
- * can be useful for determining if a response has been sent to the client.
- *
- * ### `response`
- *
- * A promise which should resolve with the supplied {@linkcode Response} object.
- * This can be used to wait for the response to be sent before continuing
- * processing.
+ * The headers that will be sent with the response. This will be merged with
+ * other headers to finalize the reponse.
  *
  * ### `url`
  *
@@ -155,11 +149,39 @@
  * body schema is provided to the route, the body will be validated against that
  * schema before being returned.
  *
+ * ### `conflict()`
+ *
+ * A method which throws a `409 Conflict` error and takes an optional message
+ * and optional cause.
+ *
+ * ### `created()`
+ *
+ * A method which returns a {@linkcode Response} with a `201 Created` status
+ * code. The method takes the body of the response and an optional object with
+ * options for the response. If a `location` property is provided in the
+ * options, the response will include a `Location` header with the value of the
+ * location.
+ *
+ * If `locationParams` is provided in the options, the location will be
+ * interpolated with the parameters provided.
+ *
+ * ### `notFound()`
+ *
+ * A method which throws a `404 Not Found` error and takes an optional message
+ * and optional cause.
+ *
  * ### `queryParams()`
  *
  * A method which returns a promise that resolves with the query parameters of
  * the request. If a query parameter schema is provided to the route, the query
  * parameters will be validated against that schema before being returned.
+ *
+ * ### `redirect()`
+ *
+ * A method which sends a redirect response to the client. The method takes a
+ * location and an optional init object with options for the response. If the
+ * location is a path with parameters, the `params` object can be provided to
+ * interpolate the parameters into the URL.
  *
  * ### `throw()`
  *

@@ -321,7 +321,7 @@ export class Context<
     });
     if (location) {
       if (params) {
-        const toPath = compile(location);
+        const toPath = compile(location, { strict: true });
         response.headers.set("location", toPath(params));
       } else {
         response.headers.set("location", location);

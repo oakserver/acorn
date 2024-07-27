@@ -70,6 +70,12 @@ export interface RouteHandler<
  */
 export interface RouteOptions {
   /**
+   * Allows the path delimiter (`/`) to be repeated arbitrarily.
+   *
+   * @default true
+   */
+  loose?: boolean;
+  /**
    * When matching route paths, enforce cases sensitive matches.
    *
    * @default false
@@ -79,9 +85,9 @@ export interface RouteOptions {
    * When matching route paths, ensure that optional trailing slashes are not
    * matched.
    *
-   * @default false
+   * @default true
    */
-  strict?: boolean;
+  trailing?: boolean;
 }
 
 /**
@@ -183,7 +189,7 @@ export class PathRoute<
     this.#handler = handler;
     this.#keys = keys;
     this.#expose = expose;
-    this.#regex = pathToRegexp(path, options);
+    this.#regex = pathToRegexp(path, { ...options, strict: true });
     this.#paramKeys = this.#regex.keys;
     this.#logger = getLogger("acorn.route");
     this.#logger
