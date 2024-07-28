@@ -1,6 +1,6 @@
 {
   "name": "@oak/acorn",
-  "version": "1.0.0-alpha.6",
+  "version": "1.0.0",
   "exports": { ".": "./mod.ts" },
   "publish": {
     "exclude": [

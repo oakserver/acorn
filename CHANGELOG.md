@@ -1,5 +1,24 @@
 # acorn change log
 
+## Version 1.0.0
+
+A fundamental rewrite of acorn to provide a cleaner and more cohesive way to
+create RESTful services.
+
+Notable features of acorn 1.0:
+
+- Integrated request body, response body and request query parameter validation
+  via integrated [valibot](https://valibot.dev/).
+- Integrated logger supporting logging to the console, rotating files or
+  streams.
+- A more rich `Context` which provides short-cuts for common RESTful situations
+  like redirection, object creation and not found handling. In addition
+  providing runtime agnostic access to environment variables.
+- Default handling of exceptions, not found resources and method not allowed.
+- Status routes to allow generalized handling of response statuses.
+- Hooks to provide insight into the inner workings of acorn.
+- More robust support for Node.js, Bun, and Cloudflare Workers.
+
 ## Version 0.7.1
 
 - docs: improve examples (7a20b7e)
