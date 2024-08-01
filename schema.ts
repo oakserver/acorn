@@ -79,7 +79,8 @@ export interface InvalidHandler<
   ): Promise<Response> | Response;
 }
 
-type ValidationOptions<
+/** Validation options which can be applied when validating. */
+export type ValidationOptions<
   Schema extends BodySchema,
 > = Omit<Config<InferIssue<Schema>>, "skipPipe">;
 

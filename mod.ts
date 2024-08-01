@@ -514,6 +514,11 @@ export {
   type RouterOptions,
 } from "./router.ts";
 export type {
+  InvalidHandler,
+  SchemaDescriptor,
+  ValidationOptions,
+} from "./schema.ts";
+export type {
   StatusHandler,
   StatusRange,
   StatusRoute,
