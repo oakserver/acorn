@@ -1,5 +1,10 @@
 # acorn change log
 
+## Version 1.1.0
+
+- docs: export schema types to allow docgen (5b295bc)
+- feat: add automatic options method handling (a273916)
+
 ## Version 1.0.0
 
 A fundamental rewrite of acorn to provide a cleaner and more cohesive way to
