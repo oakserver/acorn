@@ -29,6 +29,5 @@
     "path-to-regexp": "npm:path-to-regexp@^7.1",
     "qs": "npm:qs@^6.12"
   },
-  "fmt": { "exclude": ["README.md"] },
   "lock": false
 }

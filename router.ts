@@ -740,16 +740,24 @@ export class Router<
     }
     if (!requestEvent.responded) {
       if (allowed.length) {
-        this.#logger.debug(`${id} method not allowed`);
-        response = createHttpError(
-          Status.MethodNotAllowed,
-          "Method Not Allowed",
-          { expose: this.#expose },
-        )
-          .asResponse({
-            prefer: this.#preferJson ? "json" : "html",
+        if (requestEvent.request.method === "OPTIONS") {
+          this.#logger.debug(`${id} responding to OPTIONS`);
+          response = new Response(null, {
+            status: Status.NoContent,
             headers: { "x-request-id": id, "allowed": allowed.join(", ") },
           });
+        } else {
+          this.#logger.debug(`${id} method not allowed`);
+          response = createHttpError(
+            Status.MethodNotAllowed,
+            "Method Not Allowed",
+            { expose: this.#expose },
+          )
+            .asResponse({
+              prefer: this.#preferJson ? "json" : "html",
+              headers: { "x-request-id": id, "allowed": allowed.join(", ") },
+            });
+        }
       } else {
         this.#logger.debug(`${id} not found`);
         response = response ??
@@ -953,7 +961,7 @@ export class Router<
   /**
    * Register a provider handler provided that will be invoked on when
    * the specified path is matched along with the common HTTP methods of
-   * `GET`, `HEAD`, `OPTIONS`, `POST`, `PUT`, `PATCH`, and `DELETE`.
+   * `GET`, `HEAD`, `POST`, `PUT`, `PATCH`, and `DELETE`.
    *
    * Optional init can be supplied to adjust other aspects of how the route will
    * work.
@@ -992,7 +1000,7 @@ export class Router<
     init?: RouteInit<QueryStringSchema, BodySchema, BodySchema>,
   ): Removeable {
     return this.#addRoute(
-      ["GET", "HEAD", "OPTIONS", "POST", "PUT", "PATCH", "DELETE"],
+      ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"],
       pathOrDescriptor,
       handlerOrInit,
       init,
@@ -1208,6 +1216,10 @@ export class Router<
   /**
    * Register a handler provided in the descriptor that will be invoked on when
    * the specified `.path` is matched along with the HTTP method of `OPTIONS`.
+   *
+   * This will override the default behavior of the router to respond with a
+   * `203 No Content` status and the `Allow` header set to the allowed methods
+   * for the path.
    */
   options<
     Path extends string,
@@ -1234,6 +1246,10 @@ export class Router<
   /**
    * Register a handler provided in the init that will be invoked on when
    * the specified path is matched along with the HTTP method of `OPTIONS`.
+   *
+   * This will override the default behavior of the router to respond with a
+   * `203 No Content` status and the `Allow` header set to the allowed methods
+   * for the path.
    */
   options<
     Path extends string,
@@ -1263,6 +1279,10 @@ export class Router<
    *
    * Additionally provide an optional init to adjust other aspects of how the
    * route will work.
+   *
+   * This will override the default behavior of the router to respond with a
+   * `203 No Content` status and the `Allow` header set to the allowed methods
+   * for the path.
    */
   options<
     Path extends string,
@@ -1311,7 +1331,7 @@ export class Router<
       | undefined,
     init?: RouteInit<QueryStringSchema, BodySchema, BodySchema>,
   ): Removeable {
-    return this.#addRoute(["PATCH"], pathOrDescriptor, handlerOrInit, init);
+    return this.#addRoute(["OPTIONS"], pathOrDescriptor, handlerOrInit, init);
   }
 
   /**

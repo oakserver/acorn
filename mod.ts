@@ -91,6 +91,35 @@
  * provides methods for registering routes for different HTTP methods and
  * handling requests for those routes.
  *
+ * ### Default behaviors
+ *
+ * The router provides several automatic behaviors which are designed to make
+ * creating RESTful JSON services easier. These behaviors include handling
+ * `404 Not Found` responses, `405 Method Not Allowed` responses, and providing
+ * a default response for `OPTIONS` requests.
+ *
+ * #### Not Found
+ *
+ * When a request is received by the router and no route is matched, the router
+ * will send a `404 Not Found` response to the client. This is the default
+ * behavior of the router and can be overridden by providing a `onNotFound`
+ * hook to the router.
+ *
+ * #### Method Not Allowed
+ *
+ * When a request is received by the router and a route is matched but there is
+ * no handler for the method of the request, the router will send a `405 Method
+ * Not Allowed` response to the client which will provide the allowed methods.
+ * This is the default behavior of the router and can be overridden by providing
+ * a status handler.
+ *
+ * #### Options
+ *
+ * When a request is received by the router and the method of the request is
+ * `OPTIONS`, the router will send a response to the client with the allowed
+ * methods for the route. This is the default behavior of the router and can be
+ * overridden by providing an `options()` route.
+ *
  * ## Context
  *
  * The {@linkcode Context} is the object passed to route handlers and provides

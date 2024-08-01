@@ -11,7 +11,8 @@ and TypeScript runtime environments including [Deno runtime](https://deno.com/),
 
 It focuses on providing a router which handles inbound requests and makes it
 trivial to respond to those requests with JSON. It also provides several other
-features which make creating API servers with acorn production ready.
+features which make creating API servers with acorn production ready. acorn is a
+focused framework for creating RESTful JSON services across
 
 ## Basic usage
 
@@ -61,9 +62,8 @@ bunx jsr add @oak/acorn
 ### Usage with Deno, Node.js, and Bun
 
 Basic usage of acorn for Deno, Node.js, and Bun is the same. You import the
-[`Router`](https://jsr.io/@oak/acorn/doc/~/Router), create an instance of it,
-register routes on the router, and then called the `.listen()` method on the
-router to start listening for requests:
+`Router`, create an instance of it, register routes on the router, and then
+called the `.listen()` method on the router to start listening for requests:
 
 ```ts
 import { Router } from "@oak/acorn";
@@ -89,18 +89,46 @@ export default router;
 
 ## Router
 
-The [Router](https://jsr.io/@oak/acorn/doc/~/Router) is the core of acorn and is
-responsible for handling inbound requests and routing them to the appropriate
-handler. The router provides methods for registering routes for different HTTP
-methods and handling requests for those routes.
+The `Router` is the core of acorn and is responsible for handling inbound
+requests and routing them to the appropriate handler. The router provides
+methods for registering routes for different HTTP methods and handling requests
+for those routes.
+
+### Default behaviors
+
+The router provides several automatic behaviors which are designed to make
+creating RESTful JSON services easier. These behaviors include handling
+`404 Not Found` responses, `405 Method Not Allowed` responses, and providing a
+default response for `OPTIONS` requests.
+
+#### Not Found
+
+When a request is received by the router and no route is matched, the router
+will send a `404 Not Found` response to the client. This is the default behavior
+of the router and can be overridden by providing a `onNotFound` hook to the
+router.
+
+#### Method Not Allowed
+
+When a request is received by the router and a route is matched but there is no
+handler for the method of the request, the router will send a
+`405 Method Not Allowed` response to the client which will provide the allowed
+methods. This is the default behavior of the router and can be overridden by
+providing a status handler.
+
+#### Options
+
+When a request is received by the router and the method of the request is
+`OPTIONS`, the router will send a response to the client with the allowed
+methods for the route. This is the default behavior of the router and can be
+overridden by providing an `options()` route.
 
 ## Context
 
-The [Context](https://jsr.io/@oak/acorn/doc/~/Context) is the object passed to
-route handlers and provides information about the request and runtime
-environment. The context object provides access to the
-[Request](https://developer.mozilla.org/en-US/docs/Web/API/Request) object as
-well as other useful properties and methods for handling requests.
+The `Context` is the object passed to route handlers and provides information
+about the request and runtime environment. The context object provides access to
+the `Request` object as well as other useful properties and methods for handling
+requests.
 
 ### `addr`
 
@@ -130,21 +158,12 @@ The parameters extracted from the URL path by the router.
 
 ### `request`
 
-The Fetch API standard
-[`Request`](https://developer.mozilla.org/en-US/docs/Web/API/Request) object
-which should be handled.
+The Fetch API standard `Request` object which should be handled.
 
-### `responded`
+### `responseHeaders`
 
-A boolean value indicating whether the request has been responded to. This can
-be useful for determining if a response has been sent to the client.
-
-### `response`
-
-A promise which should resolve with the supplied
-[`Response`](https://developer.mozilla.org/en-US/docs/Web/API/Response) object.
-This can be used to wait for the response to be sent before continuing
-processing.
+The headers that will be sent with the response. This will be merged with other
+headers to finalize the reponse.
 
 ### `url`
 
@@ -162,43 +181,91 @@ assumed to be JSON. If the body is not JSON, an error will be thrown. If a body
 schema is provided to the route, the body will be validated against that schema
 before being returned.
 
+### `conflict()`
+
+A method which throws a `409 Conflict` error and takes an optional message and
+optional cause.
+
+### `created()`
+
+A method which returns a `Response` with a `201 Created` status code. The method
+takes the body of the response and an optional object with options for the
+response. If a `location` property is provided in the options, the response will
+include a `Location` header with the value of the location.
+
+If `locationParams` is provided in the options, the location will be
+interpolated with the parameters provided.
+
+### `notFound()`
+
+A method which throws a `404 Not Found` error and takes an optional message and
+optional cause.
+
 ### `queryParams()`
 
 A method which returns a promise that resolves with the query parameters of the
 request. If a query parameter schema is provided to the route, the query
 parameters will be validated against that schema before being returned.
 
+### `redirect()`
+
+A method which sends a redirect response to the client. The method takes a
+location and an optional init object with options for the response. If the
+location is a path with parameters, the `params` object can be provided to
+interpolate the parameters into the URL.
+
+### `throw()`
+
+A method which can be used to throw an HTTP error which will be caught by the
+router and handled appropriately. The method takes a status code and an optional
+message which will be sent to the client.
+
+### `created()`
+
+A method which returns a `Response` with a `201 Created` status code. The method
+takes the body of the response and an optional object with options for the
+response.
+
+This is an appropriate response when a `POST` request is made to a resource
+collection and the resource is created successfully. The options should be
+included with a `location` property set to the URL of the created resource. The
+`params` property can be used to provide parameters to the URL. For example if
+`location` is `/books/:id` and `params` is `{ id: 1 }` the URL will be
+`/books/1`.
+
+### `conflict()`
+
+A method which throws a `409 Conflict` error and takes an optional message and
+optional cause.
+
+This is an appropriate response when a `PUT` request is made to a resource that
+cannot be updated because it is in a state that conflicts with the request.
+
 ### `sendEvents()`
 
 A method which starts sending server-sent events to the client. This method
-returns a
-[`ServerSentEventTarget`](https://jsr.io/@oak/commons/doc/server_sent_event/~/ServerSentEventTarget)
-which can be used to dispatch events to the client.
+returns a `ServerSentEventTarget` which can be used to dispatch events to the
+client.
 
 ### `upgrade()`
 
-A method which can be used to upgrade the request to a
-[`WebSocket`](https://developer.mozilla.org/en-US/docs/Web/API/WebSocket)
-connection. When the request is upgraded, the request will be handled as a web
-socket connection and the method will return a
-[`WebSocket`](https://developer.mozilla.org/en-US/docs/Web/API/WebSocket) which
-can be used to communicate with the client.
+A method which can be used to upgrade the request to a `WebSocket` connection.
+When the request is upgraded, the request will be handled as a web socket
+connection and the method will return a `WebSocket` which can be used to
+communicate with the client.
 
-> [!IMPORTANT]
-> This method is only available in the Deno runtime and Deno Deploy currently.
-> If you call this method in a different runtime, an error will be thrown.
+**Note:** This method is only available in the Deno runtime and Deno Deploy
+currently. If you call this method in a different runtime, an error will be
+thrown.
 
 ## Router Handlers
 
-The [`RouteHandler`](https://jsr.io/@oak/acorn/doc/~/RouteHandler) is the
-function which is called when a route is matched by the router. The handler is
-passed the [`Context`](https://jsr.io/@oak/acorn@1.0.0-alpha.5/doc/~/Context)
-object and is expected to return a response. The response can be a plain object
-which will be serialized to JSON, a
-[`Response`](https://developer.mozilla.org/en-US/docs/Web/API/Response) object.
-The handler can also return `undefined` if the handler wishes to return a no
-content response. The handler can also return a promise which resolves with any
-of the above.
+The `RouteHandler` is the function which is called when a route is matched by
+the router. The handler is passed the `Context` object and is expected to return
+a response. The response can be a plain object which will be serialized to JSON,
+a `Response` object. The handler can also return `undefined` if the handler
+wishes to return a no content response. The handler can also return a promise
+which resolves with any of the above.
 
 ### Registering Routes
 
@@ -207,10 +274,9 @@ router. The most common methods are `get()`, `post()`, `put()`, `patch()`, and
 `delete()`. In addition `options()` and `head()` are provided.
 
 The methods take a path pattern and a handler function, and optionally an object
-with options for the route
-([`RouteInit`](https://jsr.io/@oak/acorn/doc/~/RouteInit)). The path pattern is
-a string which can include parameters and pattern matching syntax. The handler
-function is called when the route is matched and is passed the context object.
+with options for the route (`RouteInit`). The path pattern is a string which can
+include parameters and pattern matching syntax. The handler function is called
+when the route is matched and is passed the context object.
 
 For example, to register a route which responds to a `GET` request:
 
@@ -218,11 +284,8 @@ For example, to register a route which responds to a `GET` request:
 router.get("/", () => ({ hello: "world" }));
 ```
 
-The methods also accept a
-[`RouteDescriptor`](https://jsr.io/@oak/acorn/doc/~/RouteDescriptor) object, or
-a path along with a set of options
-([`RouteInitWithHandler`](https://jsr.io/@oak/acorn/doc/~/RouteInitWithHandler))
-which includes the handler function.
+The methods also accept a `RouteDescriptor` object, or a path along with a set
+of options (`RouteInitWithHandler`) which includes the handler function.
 
 For example, to register a route which responds to a `POST` request:
 
@@ -250,8 +313,8 @@ creating the router and are called at various points in the routing process.
 #### `onRequest()`
 
 The `onRequest` hook is called when a request is received by the router. The
-[`RequestEvent`](https://jsr.io/@oak/acorn/doc/~/RequestEvent) object is
-provided to the hook and can be used to inspect the request.
+`RequestEvent` object is provided to the hook and can be used to inspect the
+request.
 
 The `onRequest` could invoke the `.respond()` method on the `RequestEvent` but
 this should be avoided.
@@ -260,11 +323,9 @@ this should be avoided.
 
 As a request is being handled by the router, if no route is matched or the route
 handler returns a `404 Not Found` response the `onNotFound` hook is called.
-There is a details object which provides the
-[`RequestEvent`](https://jsr.io/@oak/acorn/doc/~/RequestEvent) being handled,
-any [`Response`](https://developer.mozilla.org/en-US/docs/Web/API/Response) that
-has been provided (but not yet sent to the client) and the
-[`Route`](https://jsr.io/@oak/acorn/doc/~/Route) that was matched, if any.
+There is a details object which provides the `RequestEvent`being handled, any
+`Response` that has been provided (but not yet sent to the client) and the
+`Route` that was matched, if any.
 
 The `onNotFound` hook can return a response to be sent to the client. If the
 hook returns `undefined`, the router will continue processing the request.
@@ -273,20 +334,15 @@ hook returns `undefined`, the router will continue processing the request.
 
 After a request has been processed by the router and a response has been sent to
 the client, the `onHandled` hook is called. The hook is provided with a set of
-details which include the
-[`RequestEvent`](https://jsr.io/@oak/acorn/doc/~/RequestEvent), the
-[`Response`](https://developer.mozilla.org/en-US/docs/Web/API/Response), the
-[`Route`](https://jsr.io/@oak/acorn/doc/~/Route) that was matched, and the time
-in milliseconds that the request took to process.
+details which include the `RequestEvent`, the `Response`, the `Route` that was
+matched, and the time in milliseconds that the request took to process.
 
 #### `onError()`
 
 If an unhandled error occurs in a handler, the `onError` hook is called. The
-hook is provided with a set of details which include the
-[`RequestEvent`](https://jsr.io/@oak/acorn/doc/~/RequestEvent), the
-[`Response`](https://developer.mozilla.org/en-US/docs/Web/API/Response) that was
-provided, the error that occurred, and the
-[`Route`](https://jsr.io/@oak/acorn/doc/~/Route) that was matched, if any.
+hook is provided with a set of details which include the `RequestEvent`, the
+`Response` that was provided, the error that occurred, and the `Route` that was
+matched, if any.
 
 ## Route Parameters
 
@@ -368,14 +424,66 @@ You can provide an optional invalid handler to the schema which will be called
 when the schema validation fails. This allows you to provide a custom response
 to the client when the request does not match the schema.
 
+## RESTful JSON Services
+
+acorn is designed to make it easy to create RESTful JSON services. The router
+provides a simple and expressive way to define routes and has several features
+which make it easy to create production ready services.
+
+### HTTP Errors
+
+acorn provides a mechanism for throwing HTTP errors from route handlers. The
+`throw()` method on the context object can be used to throw an HTTP error. HTTP
+errors are caught by the router and handled appropriately. The router will send
+a response to the client with the status code and message provided to the
+`throw()` method with the body of the response respecting the content
+negotiation headers provided by the client.
+
+### No Content Responses
+
+If a handler returns `undefined`, the router will send a `204 No Content`
+response to the client. This is useful when a request is successful but there is
+no content to return to the client.
+
+No content responses are appropriate for `PUT` or `PATCH` requests that are
+successful but you do not want to return the updated resource to the client.
+
+### Created Responses
+
+The `created()` method on the context object can be used to send a `201 Created`
+response to the client. This is appropriate when a `POST` request is made to a
+resource collection and the resource is created successfully. The method takes
+the body of the response and an optional object with options for the response.
+
+The options should be included with a `location` property set to the URL of the
+created resource. The `params` property can be used to provide parameters to the
+URL. For example if `location` is `/books/:id` and `params` is `{ id: 1 }` the
+URL will be `/books/1`.
+
+### Conflict Responses
+
+The `conflict()` method on the context object can be used to throw a
+`409 Conflict` error. This is appropriate when a `PUT` request is made to a
+resource that cannot be updated because it is in a state that conflicts with the
+request.
+
+### Redirect Responses
+
+If you need to redirect the client to a different URL, you can use the
+`redirect()` method on the context object. This method takes a URL and an
+optional status code and will send a redirect response to the client.
+
+In addition, if the `location` is a path with parameters, you can provide the
+`params` object to the `redirect()` method which will be used to populate the
+parameters in the URL.
+
 ## Logging
 
 acorn integrates the [LogTape](https://jsr.io/@logtape/logtape) library to
 provide logging capabilities for the router and routes.
 
-To enable logging, you can provide a
-[`LoggerOptions`](https://jsr.io/@oak/acorn/doc/~/LoggerOptions) object on the
-property `logger` to the router when creating it:
+To enable logging, you can provide a `LoggerOptions` object on the property
+`logger` to the router when creating it:
 
 ```ts
 const router = new Router({
@@ -386,7 +494,7 @@ const router = new Router({
 ```
 
 Alternatively, you can simply set the `logger` property to `true` to log events
-at the `"warning"` level to the console:
+at the `"WARN"` level to the console:
 
 ```ts
 const router = new Router({
