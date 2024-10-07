@@ -1,5 +1,6 @@
 import { pathToRegexp as pathToRegexp7 } from "npm:path-to-regexp@7.0.0";
 import { pathToRegexp as pathToRegexp71 } from "npm:path-to-regexp@7.1.0";
+import { pathToRegexp as pathToRegexp8 } from "npm:path-to-regexp@8.2.0";
 import { pathToRegexp } from "npm:path-to-regexp@6.2.1";
 import { URLPattern as URLPatternPolyfill } from "npm:urlpattern-polyfill@10.0.0";
 
@@ -56,6 +57,17 @@ Deno.bench({
   name: "pathToRegexp 7.1",
   fn() {
     if (regexp71.exec("/book/1234")) {
+      true;
+    }
+  },
+});
+
+const { regexp: regexp8 } = pathToRegexp8("/book/:id");
+
+Deno.bench({
+  name: "pathToRegexp 8",
+  fn() {
+    if (regexp8.exec("/book/1234")) {
       true;
     }
   },

@@ -53,5 +53,6 @@ export function isBun(): boolean {
 /** Determines if the runtime is Node.js or not. */
 export function isNode(): boolean {
   return "process" in globalThis && "global" in globalThis &&
-    !("Bun" in globalThis) && !("WebSocketPair" in globalThis);
+    !("Bun" in globalThis) && !("WebSocketPair" in globalThis) &&
+    !("Deno" in globalThis);
 }

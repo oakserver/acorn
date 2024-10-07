@@ -3,6 +3,7 @@
 import { createHttpError } from "@oak/commons/http_errors";
 import { Status } from "@oak/commons/status";
 import hyperid from "hyperid";
+import process from "node:process";
 
 import type {
   Addr,
@@ -102,8 +103,7 @@ class BunRequestEvent<
   }
 
   get env(): Env {
-    // @ts-ignore available when running under Bun
-    return process.env;
+    return process.env as Env;
   }
 
   get request(): Request {

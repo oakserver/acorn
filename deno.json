@@ -15,8 +15,8 @@
   "tasks": {
     "bench": "deno bench --allow-write --allow-read",
     "check": "deno check mod.ts",
-    "example": "deno run --allow-net --allow-env --allow-hrtime --unstable-kv _examples/server.ts",
-    "test": "deno test --allow-net --allow-env --allow-hrtime"
+    "example": "deno run --allow-net --allow-env --unstable-kv _examples/server.ts",
+    "test": "deno test --allow-net --allow-env"
   },
   "imports": {
     "@oak/commons": "jsr:@oak/commons@^1.0",
@@ -24,10 +24,10 @@
     "@std/http": "jsr:@std/http@^1.0",
     "@std/log": "jsr:@std/log@^0.224",
     "@std/media-types": "jsr:@std/media-types@^1.0",
-    "@valibot/valibot": "jsr:@valibot/valibot@^0.39",
-    "hyperid": "npm:hyperid@^3.2",
-    "path-to-regexp": "npm:path-to-regexp@^7.1",
-    "qs": "npm:qs@^6.12"
+    "@valibot/valibot": "jsr:@valibot/valibot@^0.42",
+    "hyperid": "npm:hyperid@^3.3",
+    "path-to-regexp": "npm:path-to-regexp@^8.2",
+    "qs": "npm:qs@^6.13"
   },
   "lock": false
 }

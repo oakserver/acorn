@@ -123,7 +123,7 @@ export class PathRoute<
   #params?: Params;
   #paramKeys: Key[];
   #path: Path;
-  #regex: RegExp & { keys: Key[] };
+  #regexp: RegExp;
   #schema: Schema<QSSchema, BSchema, ResSchema>;
 
   /**
@@ -154,7 +154,7 @@ export class PathRoute<
    * The path pattern that has been converted into {@linkcode RegExp}.
    */
   get regex(): RegExp {
-    return this.#regex;
+    return this.#regexp;
   }
 
   /**
@@ -189,8 +189,9 @@ export class PathRoute<
     this.#handler = handler;
     this.#keys = keys;
     this.#expose = expose;
-    this.#regex = pathToRegexp(path, { ...options, strict: true });
-    this.#paramKeys = this.#regex.keys;
+    const { regexp, keys: paramKeys } = pathToRegexp(path, { ...options });
+    this.#regexp = regexp;
+    this.#paramKeys = paramKeys;
     this.#logger = getLogger("acorn.route");
     this.#logger
       .debug(`created route with path: ${path} and methods: ${methods}`);
@@ -268,7 +269,7 @@ export class PathRoute<
    * Determines if the request should be handled by the route.
    */
   matches(method: HttpMethod, pathname: string): boolean | NotAllowed {
-    const match = pathname.match(this.#regex);
+    const match = pathname.match(this.#regexp);
     if (match) {
       if (!this.#methods.includes(method)) {
         return NOT_ALLOWED;
@@ -297,7 +298,7 @@ export class PathRoute<
       inspect({
         params: this.#params,
         path: this.#path,
-        regex: this.#regex,
+        regex: this.#regexp,
         schema: this.#schema,
       })
     }`;
@@ -321,7 +322,7 @@ export class PathRoute<
       inspect({
         params: this.#params,
         path: this.#path,
-        regex: this.#regex,
+        regex: this.#regexp,
         schema: this.#schema,
       }, newOptions)
     }`;

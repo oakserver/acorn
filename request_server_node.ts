@@ -5,6 +5,7 @@ import { Status } from "@oak/commons/status";
 import hyperid from "hyperid";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
+import process from "node:process";
 
 import type {
   Addr,
@@ -43,8 +44,7 @@ class NodeRequestEvent<Env extends Record<string, string>>
   }
 
   get env(): Env {
-    // @ts-ignore available when running under Node.js
-    return process.env;
+    return process.env as Env;
   }
 
   get id(): string {

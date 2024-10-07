@@ -5,5 +5,5 @@
     "respondable",
     "valibot"
   ],
-  "deno.unstable": true
+  "deno.unstable": ["kv"]
 }
