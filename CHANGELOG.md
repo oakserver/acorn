@@ -1,5 +1,11 @@
 # acorn change log
 
+## Version 1.1.1
+
+- chore: update std and commons (b4fb1e4)
+- chore: update deps and changes for Deno 2 (d1fd693)
+- chore: add canary to ci (7debfc0)
+
 ## Version 1.1.0
 
 - docs: export schema types to allow docgen (5b295bc)
