@@ -25,7 +25,7 @@ installing acorn to your project and then creating a router to handle requests.
 To install acorn for Deno, you can install it via the Deno runtime CLI:
 
 ```
-deno add @oak/acorn
+deno add jsr:@oak/acorn
 ```
 
 ### Installing for Node.js or Cloudflare Workers
