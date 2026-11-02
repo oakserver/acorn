@@ -1,5 +1,15 @@
 # acorn
 
+> [!WARNING]
+> **acorn is unmaintained and will be archived.**
+>
+> Following the retirement of Deno, this project is no longer maintained. The
+> repository will be archived and there will be no further releases, bug fixes
+> or security patches. Existing releases remain available on
+> [JSR](https://jsr.io/@oak/acorn) for current consumers, but acorn should not
+> be used in new projects. The documentation below is retained for reference.
+> Thank you to everyone who contributed to and used acorn.
+
 [![jsr.io/@oak/acorn](https://jsr.io/badges/@oak/acorn)](https://jsr.io/@oak/acorn)
 [![jsr.io/@oak/acorn score](https://jsr.io/badges/@oak/acorn/score)](https://jsr.io/@oak/acorn)
 
