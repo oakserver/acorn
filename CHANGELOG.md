@@ -1,5 +1,13 @@
 # acorn change log
 
+## Version 1.1.2
+
+Final release. acorn is unmaintained and will be archived — see the notice in
+the README. Documentation changes only; no functional changes.
+
+- docs: declare acorn unmaintained ahead of archiving (53bf1d9)
+- docs: add missing registry prefix (15c81dc)
+
 ## Version 1.1.1
 
 - chore: update std and commons (b4fb1e4)
