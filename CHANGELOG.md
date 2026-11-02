@@ -1,5 +1,12 @@
 # acorn change log
 
+## Version 1.1.3
+
+Adds the unmaintained notice to the published module documentation — the JSR
+package page renders the entrypoint's module doc, not README.md, so 1.1.2 did
+not surface the notice there. Documentation changes only; no functional
+changes.
+
 ## Version 1.1.2
 
 Final release. acorn is unmaintained and will be archived — see the notice in

@@ -1,6 +1,15 @@
 // Copyright 2018-2024 the oak authors. All rights reserved.
 
 /**
+ * > **acorn is unmaintained and will be archived.**
+ * >
+ * > Following the retirement of Deno, this project is no longer maintained. The
+ * > repository will be archived and there will be no further releases, bug fixes
+ * > or security patches. Existing releases remain available on
+ * > [JSR](https://jsr.io/@oak/acorn) for current consumers, but acorn should not
+ * > be used in new projects. The documentation below is retained for reference.
+ * > Thank you to everyone who contributed to and used acorn.
+ *
  * acorn is a focused framework for creating RESTful JSON services across
  * various JavaScript and TypeScript runtime environments including Deno
  * runtime, Deno Deploy, Node.js, Bun and Cloudflare Workers.
